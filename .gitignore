@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env
+.env.local
+.env.*.local
+data/uploads/
+tiles/data/*.pmtiles
+db/node_modules/
+*.log
+.DS_Store
+.claude/settings.local.json

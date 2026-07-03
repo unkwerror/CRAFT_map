@@ -1,0 +1,14 @@
+{
+  "name": "craft-map-db",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "node migrate.mjs",
+    "seed": "node seed.mjs",
+    "import": "node import/import.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "postgres": "^3.4.7"
+  }
+}

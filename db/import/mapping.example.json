@@ -1,0 +1,12 @@
+{
+  "title": "name",
+  "description": "descr",
+  "category": "cat",
+  "address": "addr",
+  "categoryMap": {
+    "Патриотизм": "patriotism",
+    "Историческая память": "memory",
+    "Достоинство": "dignity",
+    "Преемственность поколений": "continuity"
+  }
+}

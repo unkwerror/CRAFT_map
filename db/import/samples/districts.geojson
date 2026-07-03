@@ -1,0 +1,38 @@
+{
+  "type": "FeatureCollection",
+  "name": "ТЕСТОВЫЕ округа (упрощённые прямоугольники, заменить слоем из QGIS)",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Калининский" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[65.35, 57.05], [65.52, 57.05], [65.52, 57.25], [65.35, 57.25], [65.35, 57.05]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Центральный" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[65.52, 57.12], [65.58, 57.12], [65.58, 57.20], [65.52, 57.20], [65.52, 57.12]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Ленинский" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[65.52, 57.05], [65.58, 57.05], [65.58, 57.12], [65.52, 57.12], [65.52, 57.05]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Восточный" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[65.58, 57.05], [65.75, 57.05], [65.75, 57.25], [65.58, 57.25], [65.58, 57.05]]]
+      }
+    }
+  ]
+}
