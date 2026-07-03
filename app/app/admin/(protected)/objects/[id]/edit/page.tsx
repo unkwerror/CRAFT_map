@@ -21,10 +21,11 @@ export default async function EditObjectPage({ params }: { params: Promise<{ id:
     lng: number
     lat: number
     photos: Photo[]
+    model_url: string | null
     published: boolean
   }[]>`
     select o.id, o.title, o.description, o.category_id, o.address,
-           st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.published
+           st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.model_url, o.published
     from objects o where o.id = ${id} limit 1`
 
   const r = rows[0]
@@ -42,6 +43,7 @@ export default async function EditObjectPage({ params }: { params: Promise<{ id:
     lng: r.lng,
     lat: r.lat,
     photos: r.photos,
+    modelUrl: r.model_url,
     published: r.published,
   }
 

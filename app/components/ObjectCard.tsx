@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ObjectFull } from '@/lib/types'
+import ModelViewer from './ModelViewer'
 
 interface Props {
   id: string
@@ -13,6 +14,7 @@ export default function ObjectCard({ id, onClose }: Props) {
   const [data, setData] = useState<ObjectFull | null>(null)
   const [error, setError] = useState(false)
   const [photoIdx, setPhotoIdx] = useState(0)
+  const [view, setView] = useState<'photos' | '3d'>('photos')
   const touchX = useRef<number | null>(null)
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function ObjectCard({ id, onClose }: Props) {
     setData(null)
     setError(false)
     setPhotoIdx(0)
+    setView('photos')
     fetch(`/api/objects/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: ObjectFull) => {
@@ -60,8 +63,32 @@ export default function ObjectCard({ id, onClose }: Props) {
 
       {data && (
         <>
-          {/* Галерея */}
-          {photos.length > 0 ? (
+          {/* Переключатель Фото / 3D-модель */}
+          {data.modelUrl && (
+            <div className="absolute left-3 top-3 z-10 flex overflow-hidden rounded-full bg-black/45 p-0.5 text-xs font-medium text-white backdrop-blur">
+              <button
+                type="button"
+                onClick={() => setView('photos')}
+                className={`rounded-full px-3 py-1 transition-colors ${view === 'photos' ? 'bg-white text-[#122a42]' : 'text-white/80 hover:text-white'}`}
+              >
+                Фото
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('3d')}
+                className={`rounded-full px-3 py-1 transition-colors ${view === '3d' ? 'bg-white text-[#122a42]' : 'text-white/80 hover:text-white'}`}
+              >
+                3D-модель
+              </button>
+            </div>
+          )}
+
+          {/* Медиа: 3D-модель или галерея фото */}
+          {view === '3d' && data.modelUrl ? (
+            <div className="aspect-[4/3] w-full bg-gradient-to-b from-[#16324e] to-[#0d2036]">
+              <ModelViewer src={data.modelUrl} alt={data.title} />
+            </div>
+          ) : photos.length > 0 ? (
             <div
               className="relative aspect-[4/3] w-full select-none bg-black/30"
               onTouchStart={(e) => {

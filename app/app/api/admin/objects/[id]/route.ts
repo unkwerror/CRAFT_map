@@ -30,12 +30,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
     lng: number
     lat: number
     photos: Photo[]
+    model_url: string | null
     published: boolean
   }[]>`
     select o.id, o.title, o.description, o.category_id,
            c.title as category_title, c.color as category_color,
            d.name as district_name, o.address,
-           st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.published
+           st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.model_url, o.published
     from objects o
     join categories c on c.id = o.category_id
     left join districts d on d.id = o.district_id
@@ -57,6 +58,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     lng: r.lng,
     lat: r.lat,
     photos: r.photos,
+    modelUrl: r.model_url,
     published: r.published,
   }
   return NextResponse.json(dto)
@@ -84,7 +86,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     set title = ${d.title}, description = ${d.description ?? null},
         category_id = ${d.categoryId}, address = ${d.address ?? null},
         geom = st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
-        photos = ${JSON.stringify(d.photos)}::jsonb, published = ${d.published}, sort_weight = ${d.sortWeight}
+        photos = ${JSON.stringify(d.photos)}::jsonb, model_url = ${d.modelUrl ?? null},
+        published = ${d.published}, sort_weight = ${d.sortWeight}
     where id = ${id}
     returning id`
   if (!rows.length) return notFound()
