@@ -85,10 +85,11 @@ export async function POST(req: NextRequest) {
       insert into objects (title, description, category_id, address, geom, photos, published, sort_weight)
       values (${d.title}, ${d.description ?? null}, ${d.categoryId}, ${d.address ?? null},
               st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
-              ${pg.json(d.photos)}, ${d.published}, ${d.sortWeight})
+              ${JSON.stringify(d.photos)}::jsonb, ${d.published}, ${d.sortWeight})
       returning id`
     return NextResponse.json({ id: row?.id }, { status: 201 })
-  } catch {
+  } catch (e) {
+    console.error('POST /api/admin/objects:', e)
     return NextResponse.json({ error: 'Не удалось создать объект (проверьте категорию)' }, { status: 400 })
   }
 }

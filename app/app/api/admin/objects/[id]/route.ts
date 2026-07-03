@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     set title = ${d.title}, description = ${d.description ?? null},
         category_id = ${d.categoryId}, address = ${d.address ?? null},
         geom = st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
-        photos = ${pg.json(d.photos)}, published = ${d.published}, sort_weight = ${d.sortWeight}
+        photos = ${JSON.stringify(d.photos)}::jsonb, published = ${d.published}, sort_weight = ${d.sortWeight}
     where id = ${id}
     returning id`
   if (!rows.length) return notFound()
