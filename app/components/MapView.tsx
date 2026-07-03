@@ -283,5 +283,12 @@ export default function MapView({
     }
   }, [ready, fitDistrict, districts])
 
-  return <div ref={containerRef} className="absolute inset-0" />
+  // Обёртка держит позиционирование: MapLibre вешает на контейнер класс
+  // .maplibregl-map { position: relative }, который в прод-сборке перебивает
+  // tailwind-класс absolute (порядок CSS-бандлов) и схлопывает высоту в 0.
+  return (
+    <div className="absolute inset-0">
+      <div ref={containerRef} className="h-full w-full" />
+    </div>
+  )
 }
