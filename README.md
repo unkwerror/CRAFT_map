@@ -74,6 +74,18 @@ docker compose exec app node /srv/db/import/import.mjs districts /srv/db/import/
 30 3 * * * cd /opt/CRAFT_map && ./db/backup.sh >> /var/log/craft-backup.log 2>&1
 ```
 
+### CI/CD
+
+Деплой автоматический: push в `main` на GitHub → workflow
+`.github/workflows/deploy.yml` заходит по SSH на прод, делает
+`git reset --hard origin/main`, пересобирает и перезапускает контейнер `app`.
+Запустить вручную можно через вкладку Actions (workflow_dispatch).
+
+Требуется секрет репозитория `DEPLOY_SSH_KEY` (приватный ed25519-ключ,
+парный публичный лежит в `/root/.ssh/authorized_keys` на сервере).
+Прямой rsync-деплой больше не нужен — код на сервере обновляется только
+через git, локальные правки в `/opt/CRAFT_map` будут затёрты.
+
 ## Фазы (из ТЗ)
 
 1. ✅ Каркас: compose, миграции, seed категорий и админа

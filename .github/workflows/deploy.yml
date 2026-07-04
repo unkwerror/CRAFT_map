@@ -1,0 +1,32 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Деплой на прод (память.site)
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 159.194.201.108 >> ~/.ssh/known_hosts
+          ssh root@159.194.201.108 '
+            set -euo pipefail
+            cd /opt/CRAFT_map
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose build app
+            docker compose up -d app
+            docker image prune -f
+          '
