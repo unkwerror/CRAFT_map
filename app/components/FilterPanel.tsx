@@ -34,43 +34,41 @@ export default function FilterPanel({
   const [open, setOpen] = useState(false)
 
   const body = (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <fieldset>
-        <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/60">
-          Категории
-        </legend>
-        <div className="space-y-1.5">
+        <legend className="eyebrow mb-2.5">Категории</legend>
+        <div className="space-y-0.5">
           {categories.map((c) => (
-            <label key={c.id} className="flex cursor-pointer items-center gap-2.5 text-sm">
+            <label
+              key={c.id}
+              className="-mx-2 flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-white/5"
+            >
               <input
                 type="checkbox"
                 checked={activeCats.has(c.id)}
                 onChange={() => onToggleCat(c.id)}
-                className="h-4 w-4 accent-white"
+                className="h-4 w-4 accent-[var(--accent)]"
               />
               <span
-                className="inline-block h-3 w-3 shrink-0 rounded-full"
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ background: c.color }}
                 aria-hidden
               />
-              <span className="text-white/90">{c.title}</span>
+              <span className="text-[var(--ink)]/90">{c.title}</span>
             </label>
           ))}
         </div>
       </fieldset>
 
       <div>
-        <label
-          htmlFor="district-select"
-          className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-white/60"
-        >
+        <label htmlFor="district-select" className="eyebrow mb-1.5 block">
           Округ
         </label>
         <select
           id="district-select"
           value={activeDistrict ?? ''}
           onChange={(e) => onDistrict(e.target.value ? Number(e.target.value) : null)}
-          className="w-full rounded-lg border border-white/15 bg-[#16324e] px-3 py-2 text-sm text-white outline-none focus:border-white/40"
+          className="field"
         >
           <option value="">Все округа</option>
           {districts.map((d) => (
@@ -81,15 +79,17 @@ export default function FilterPanel({
         </select>
       </div>
 
-      <StatsPanel stats={stats} onDistrictClick={onDistrictByName} />
+      <div className="border-t border-[var(--hairline)] pt-4">
+        <StatsPanel stats={stats} onDistrictClick={onDistrictByName} />
+      </div>
     </div>
   )
 
   return (
     <>
       {/* Desktop: карточка слева сверху */}
-      <div className="absolute left-4 top-4 z-10 hidden w-80 rounded-2xl bg-[#122a42]/90 p-4 shadow-xl backdrop-blur md:block">
-        <h1 className="mb-3 text-base font-bold leading-tight text-white">
+      <div className="panel absolute left-4 top-4 z-10 hidden w-80 rounded-2xl p-5 md:block">
+        <h1 className="mb-4 text-[15px] font-semibold leading-tight text-[var(--ink)]">
           Памятные объекты Тюмени
         </h1>
         {body}
@@ -100,14 +100,16 @@ export default function FilterPanel({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="mx-auto mb-2 flex items-center gap-2 rounded-full bg-[#122a42]/95 px-4 py-2.5 text-sm font-medium text-white shadow-lg backdrop-blur"
+          className="panel mx-auto mb-2 flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-[var(--ink)]"
         >
-          <span className="inline-block h-2 w-2 rounded-full bg-[#F0A93B]" aria-hidden />
+          <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)]" aria-hidden />
           Фильтры и статистика
-          <span aria-hidden>{open ? '▾' : '▴'}</span>
+          <span className="text-[var(--ink-subtle)]" aria-hidden>
+            {open ? '▾' : '▴'}
+          </span>
         </button>
         {open && (
-          <div className="panel-scroll max-h-[60vh] overflow-y-auto rounded-t-2xl bg-[#122a42]/95 p-4 pb-6 shadow-2xl backdrop-blur">
+          <div className="panel panel-scroll max-h-[60vh] overflow-y-auto rounded-t-2xl p-5 pb-6">
             {body}
           </div>
         )}

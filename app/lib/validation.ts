@@ -14,6 +14,7 @@ export const objectInputSchema = z.object({
   lng: z.number().min(-180).max(180),
   lat: z.number().min(-90).max(90),
   photos: z.array(photoSchema).max(20).default([]),
+  modelUrl: z.string().max(500).nullish(),
   published: z.boolean().default(true),
   sortWeight: z.number().int().min(-1000).max(1000).default(0),
 })

@@ -39,6 +39,7 @@ export const objects = pgTable('objects', {
   address: text('address'),
   geom: geometry('geom').notNull(),
   photos: jsonb('photos').$type<Photo[]>().notNull().default([]),
+  modelUrl: text('model_url'),
   published: boolean('published').notNull().default(true),
   sortWeight: integer('sort_weight').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

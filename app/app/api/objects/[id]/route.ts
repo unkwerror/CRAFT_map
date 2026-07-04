@@ -17,6 +17,7 @@ interface Row {
   lng: number
   lat: number
   photos: Photo[]
+  model_url: string | null
   published: boolean
 }
 
@@ -32,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
            c.title as category_title, c.color as category_color,
            d.name as district_name, o.address,
            st_x(o.geom) as lng, st_y(o.geom) as lat,
-           o.photos, o.published
+           o.photos, o.model_url, o.published
     from objects o
     join categories c on c.id = o.category_id
     left join districts d on d.id = o.district_id
@@ -54,6 +55,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     lng: r.lng,
     lat: r.lat,
     photos: r.photos,
+    modelUrl: r.model_url,
     published: r.published,
   }
   return NextResponse.json(dto)

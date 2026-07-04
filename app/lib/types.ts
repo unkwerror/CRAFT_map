@@ -43,6 +43,7 @@ export interface ObjectFull {
   lng: number
   lat: number
   photos: Photo[]
+  modelUrl: string | null
   published: boolean
 }
 

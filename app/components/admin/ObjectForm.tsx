@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import MiniMap from './MiniMap'
 import PhotoUpload from './PhotoUpload'
+import ModelUpload from './ModelUpload'
 import type { CategoryDto, ObjectFull, Photo } from '@/lib/types'
 
 interface Props {
@@ -20,6 +21,7 @@ export default function ObjectForm({ categories, initial }: Props) {
   const [lng, setLng] = useState<number | null>(initial?.lng ?? null)
   const [lat, setLat] = useState<number | null>(initial?.lat ?? null)
   const [photos, setPhotos] = useState<Photo[]>(initial?.photos ?? [])
+  const [modelUrl, setModelUrl] = useState<string | null>(initial?.modelUrl ?? null)
   const [published, setPublished] = useState(initial?.published ?? true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -41,6 +43,7 @@ export default function ObjectForm({ categories, initial }: Props) {
       lng,
       lat,
       photos,
+      modelUrl,
       published,
       sortWeight: 0,
     }
@@ -113,6 +116,11 @@ export default function ObjectForm({ categories, initial }: Props) {
         <div>
           <span className="mb-1 block text-sm font-medium">Фотографии</span>
           <PhotoUpload photos={photos} onChange={setPhotos} />
+        </div>
+
+        <div>
+          <span className="mb-1 block text-sm font-medium">3D-модель (.glb)</span>
+          <ModelUpload modelUrl={modelUrl} onChange={setModelUrl} />
         </div>
       </div>
 

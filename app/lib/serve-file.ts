@@ -11,6 +11,8 @@ const TYPES: Record<string, string> = {
   '.pbf': 'application/x-protobuf',
   '.pmtiles': 'application/octet-stream',
   '.json': 'application/json',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
 }
 
 function contentType(path: string): string {

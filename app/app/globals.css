@@ -1,25 +1,115 @@
 @import 'tailwindcss';
 
 :root {
-  --navy-900: #122a42;
-  --navy-800: #16324e;
-  --navy-700: #1b3a5c;
-  --navy-600: #24425e;
+  /* Поверхности */
+  --bg: #0d1f30;
+  --surface: #102a43;
+  --surface-2: #16324e;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+
+  /* Текст */
+  --ink: #e9f1f9;
+  --ink-muted: rgba(233, 241, 249, 0.62);
+  --ink-subtle: rgba(233, 241, 249, 0.4);
+
+  /* Акцент */
+  --accent: #f0a93b;
+  --accent-hover: #e59a2a;
+  --accent-ink: #10243a;
 }
 
 html,
 body {
   height: 100%;
-  background: var(--navy-800);
-  color: #e8eff7;
+  background: var(--bg);
+  color: var(--ink);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* тонкий скроллбар в панелях */
+/* ---- Общие элементы UI (минималистичный язык) ---- */
+
+/* Плавающая панель — стекло, тонкая рамка, мягкая тень */
+.panel {
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 12px 32px -14px rgba(0, 0, 0, 0.55);
+}
+
+/* Мелкая подпись-рубрика над группой */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-subtle);
+}
+
+/* Поля ввода / селекты */
+.field {
+  width: 100%;
+  border-radius: 0.625rem;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.field:hover {
+  border-color: var(--hairline-strong);
+}
+.field:focus {
+  border-color: rgba(240, 169, 59, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Основная (акцентная) кнопка */
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.625rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+.btn-accent:hover {
+  background: var(--accent-hover);
+}
+
+/* Ненавязчивая иконочная кнопка (закрыть, стрелки) */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(9, 20, 33, 0.5);
+  color: #fff;
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease;
+}
+.btn-ghost:hover {
+  background: rgba(9, 20, 33, 0.72);
+}
+
+/* Тонкий скроллбар в панелях */
+.panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
 .panel-scroll::-webkit-scrollbar {
   width: 6px;
 }
 .panel-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 3px;
 }

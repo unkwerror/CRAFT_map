@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ObjectFull } from '@/lib/types'
+import ModelViewer from './ModelViewer'
 
 interface Props {
   id: string
@@ -13,6 +14,7 @@ export default function ObjectCard({ id, onClose }: Props) {
   const [data, setData] = useState<ObjectFull | null>(null)
   const [error, setError] = useState(false)
   const [photoIdx, setPhotoIdx] = useState(0)
+  const [view, setView] = useState<'photos' | '3d'>('photos')
   const touchX = useRef<number | null>(null)
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function ObjectCard({ id, onClose }: Props) {
     setData(null)
     setError(false)
     setPhotoIdx(0)
+    setView('photos')
     fetch(`/api/objects/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: ObjectFull) => {
@@ -41,29 +44,54 @@ export default function ObjectCard({ id, onClose }: Props) {
 
   return (
     <aside
-      className="panel-scroll absolute z-20 overflow-y-auto bg-[#122a42] text-white shadow-2xl
-                 max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[72vh] max-md:rounded-t-2xl
-                 md:right-0 md:top-0 md:h-full md:w-[400px]"
+      className="panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)]
+                 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.6)]
+                 max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[74vh] max-md:rounded-t-2xl
+                 md:right-0 md:top-0 md:h-full md:w-[400px] md:border-l md:border-[var(--hairline)]"
       aria-label="Карточка объекта"
     >
       <button
         type="button"
         onClick={onClose}
         aria-label="Закрыть"
-        className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-lg leading-none text-white hover:bg-black/60"
+        className="btn-ghost absolute right-3 top-3 z-10 h-8 w-8 text-base leading-none"
       >
         ✕
       </button>
 
-      {error && <p className="p-6 pt-14 text-white/70">Не удалось загрузить объект.</p>}
-      {!data && !error && <p className="p-6 pt-14 text-white/50">Загрузка…</p>}
+      {error && <p className="p-6 pt-14 text-[var(--ink-muted)]">Не удалось загрузить объект.</p>}
+      {!data && !error && <p className="p-6 pt-14 text-[var(--ink-subtle)]">Загрузка…</p>}
 
       {data && (
         <>
-          {/* Галерея */}
-          {photos.length > 0 ? (
+          {/* Переключатель Фото / 3D-модель */}
+          {data.modelUrl && (
+            <div className="absolute left-3 top-3 z-10 flex gap-0.5 rounded-lg border border-white/10 bg-black/40 p-0.5 text-xs font-medium backdrop-blur">
+              <button
+                type="button"
+                onClick={() => setView('photos')}
+                className={`rounded-md px-2.5 py-1 transition-colors ${view === 'photos' ? 'bg-white/95 text-[var(--surface)]' : 'text-white/70 hover:text-white'}`}
+              >
+                Фото
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('3d')}
+                className={`rounded-md px-2.5 py-1 transition-colors ${view === '3d' ? 'bg-white/95 text-[var(--surface)]' : 'text-white/70 hover:text-white'}`}
+              >
+                3D-модель
+              </button>
+            </div>
+          )}
+
+          {/* Медиа: 3D-модель или галерея фото */}
+          {view === '3d' && data.modelUrl ? (
+            <div className="aspect-[4/3] w-full bg-[var(--surface-2)]">
+              <ModelViewer src={data.modelUrl} alt={data.title} />
+            </div>
+          ) : photos.length > 0 ? (
             <div
-              className="relative aspect-[4/3] w-full select-none bg-black/30"
+              className="relative aspect-[4/3] w-full select-none bg-black/20"
               onTouchStart={(e) => {
                 touchX.current = e.touches[0]?.clientX ?? null
               }}
@@ -88,7 +116,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                     type="button"
                     onClick={prev}
                     aria-label="Предыдущее фото"
-                    className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+                    className="btn-ghost absolute left-2 top-1/2 h-9 w-9 -translate-y-1/2 text-lg"
                   >
                     ‹
                   </button>
@@ -96,15 +124,15 @@ export default function ObjectCard({ id, onClose }: Props) {
                     type="button"
                     onClick={next}
                     aria-label="Следующее фото"
-                    className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+                    className="btn-ghost absolute right-2 top-1/2 h-9 w-9 -translate-y-1/2 text-lg"
                   >
                     ›
                   </button>
-                  <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
+                  <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-1.5">
                     {photos.map((p, i) => (
                       <span
                         key={p.original}
-                        className={`h-1.5 w-1.5 rounded-full ${i === photoIdx ? 'bg-white' : 'bg-white/40'}`}
+                        className={`h-1.5 rounded-full transition-all ${i === photoIdx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`}
                       />
                     ))}
                   </div>
@@ -112,35 +140,33 @@ export default function ObjectCard({ id, onClose }: Props) {
               )}
             </div>
           ) : (
-            <div className="flex aspect-[4/3] w-full items-center justify-center bg-[#16324e] text-5xl">
+            <div className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--surface-2)] text-4xl opacity-40">
               📍
             </div>
           )}
 
-          <div className="space-y-3 p-5">
-            <span
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
-              style={{ background: `${data.categoryColor}26`, color: data.categoryColor }}
-            >
+          <div className="space-y-4 p-5">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink-muted)]">
               <span
-                className="h-2 w-2 rounded-full"
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ background: data.categoryColor }}
                 aria-hidden
               />
               {data.categoryTitle}
-            </span>
+            </div>
 
-            <h2 className="text-xl font-bold leading-snug">{data.title}</h2>
-
-            {data.address && (
-              <p className="text-sm text-white/60">
-                {data.address}
-                {data.districtName ? ` · ${data.districtName} округ` : ''}
-              </p>
-            )}
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-semibold leading-snug">{data.title}</h2>
+              {data.address && (
+                <p className="text-sm text-[var(--ink-muted)]">
+                  {data.address}
+                  {data.districtName ? ` · ${data.districtName} округ` : ''}
+                </p>
+              )}
+            </div>
 
             {data.description && (
-              <p className="whitespace-pre-line text-sm leading-relaxed text-white/85">
+              <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/85">
                 {data.description}
               </p>
             )}
@@ -149,7 +175,7 @@ export default function ObjectCard({ id, onClose }: Props) {
               href={`https://yandex.ru/maps/?rtext=~${data.lat},${data.lng}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#F0A93B] px-4 py-3 text-sm font-semibold text-[#122a42] hover:brightness-110"
+              className="btn-accent mt-1 w-full px-4 py-3 text-sm"
             >
               Маршрут в Яндекс.Картах →
             </a>
