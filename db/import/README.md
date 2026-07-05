@@ -22,14 +22,30 @@ cd db && npm run import -- districts import/samples/districts.geojson
 (`patriotism | memory | dignity | continuity`).
 
 ```bash
-cd db && npm run import -- objects import/samples/objects.geojson import/mapping.example.json
+cd db && npm run import -- objects <objects.geojson> import/mapping.example.json
 ```
 
 Скрипт идемпотентен: повторный запуск обновляет существующие записи
 (ключ — название + точная геометрия), а не создаёт дубли. `district_id`
 проставляется триггером БД автоматически (ST_Contains).
 
+## Импорт объектов с доски КРАФТ (monuments.json)
+
+См. `IMPORT_MONUMENTS.md` в корне репозитория. Порядок:
+
+```bash
+cd db
+node import/import-monuments.mjs           # объекты + фото (sharp, webp)
+python3 import/geocode.py                  # проход 1: Nominatim, 1 req/sec
+python3 import/geocode_overpass.py         # проход 2: Overpass + фаззи-матчинг названий
+```
+
+`geocode.py` требует psycopg: `python3 -m venv import/.venv && import/.venv/bin/pip install 'psycopg[binary]'`,
+запускать `import/.venv/bin/python import/geocode.py`. Скрипт пишет отчёт
+`db/import/geocode_report.md` (статусы, сверка округов, возможные дубли).
+После геокодинга объекты проверяются вручную в админке: `/admin/import-review`.
+
 ## Тестовые данные
 
-`samples/` — **тестовые** округа (упрощённые прямоугольники) и ~12 объектов с
-примерными координатами: только для разработки, заменить реальными слоями из QGIS.
+`samples/districts*.geojson` — границы округов: `districts-real.geojson` — реальные,
+`districts.geojson` — упрощённые прямоугольники для разработки.

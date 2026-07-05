@@ -59,6 +59,32 @@ export interface AdminObjectRow {
   updatedAt: string
 }
 
+export type GeocodeStatus = 'pending' | 'high' | 'medium' | 'failed' | 'verified'
+
+/** Строка режима «Проверка импорта» (объекты из monuments.json) */
+export interface ImportReviewRow {
+  id: string
+  sourceId: number
+  title: string
+  description: string | null
+  categoryId: string
+  address: string | null
+  /** округ, заявленный на доске КРАФТ */
+  importDistrict: string | null
+  /** округ по факту (ST_Contains по координате) */
+  districtName: string | null
+  lng: number | null
+  lat: number | null
+  geocodeStatus: GeocodeStatus
+  geocodeQuery: string | null
+  geocodeNote: string | null
+  importFlags: string[]
+  photos: Photo[]
+  published: boolean
+  /** объекты ближе 100 м — кандидаты в дубли */
+  nearby: { id: string; sourceId: number | null; title: string; dist: number }[]
+}
+
 export interface UserRow {
   id: string
   email: string

@@ -9,3 +9,7 @@ db/node_modules/
 *.log
 .DS_Store
 .claude/settings.local.json
+db/import/.venv/
+monument_photos/
+__pycache__/
+*.tsbuildinfo

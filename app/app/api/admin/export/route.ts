@@ -12,8 +12,8 @@ interface Row {
   category_id: string
   district_name: string | null
   address: string | null
-  lng: number
-  lat: number
+  lng: number | null
+  lat: number | null
   photos: Photo[]
   published: boolean
   sort_weight: number
@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
     type: 'FeatureCollection',
     features: rows.map((r) => ({
       type: 'Feature',
-      geometry: { type: 'Point', coordinates: [r.lng, r.lat] },
+      // у непроверенных импортированных объектов координаты может ещё не быть
+      geometry: r.lng !== null && r.lat !== null
+        ? { type: 'Point', coordinates: [r.lng, r.lat] }
+        : null,
       properties: {
         id: r.id,
         title: r.title,

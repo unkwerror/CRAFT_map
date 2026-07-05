@@ -30,3 +30,17 @@ export const userInputSchema = z.object({
 })
 
 export const uuidSchema = z.string().uuid()
+
+/** Проверка импорта: установка координаты и/или подтверждение */
+export const importReviewPatchSchema = z
+  .object({
+    lng: z.number().min(-180).max(180).optional(),
+    lat: z.number().min(-90).max(90).optional(),
+    verify: z.boolean().optional(),
+  })
+  .refine((d) => (d.lng === undefined) === (d.lat === undefined), {
+    message: 'lng и lat передаются вместе',
+  })
+  .refine((d) => d.lng !== undefined || d.verify !== undefined, {
+    message: 'Пустой запрос',
+  })
