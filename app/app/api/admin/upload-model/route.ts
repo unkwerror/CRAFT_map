@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/guard'
 import { UPLOADS_DIR } from '@/lib/paths'
+import { optimizeGlb } from '@/lib/optimize-glb'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,9 +34,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Файл не является корректным .glb' }, { status: 400 })
   }
 
+  // Автооптимизация под веб (meshopt-геометрия + WebP-текстуры). При любой
+  // ошибке оптимизатора сохраняем исходный файл — загрузка не должна падать.
+  let out: Buffer = buf
+  try {
+    out = await optimizeGlb(buf)
+  } catch {
+    out = buf
+  }
+
   const id = randomUUID()
   await mkdir(UPLOADS_DIR, { recursive: true })
-  await writeFile(join(UPLOADS_DIR, `${id}.glb`), buf)
+  await writeFile(join(UPLOADS_DIR, `${id}.glb`), out)
 
   return NextResponse.json({ url: `/uploads/${id}.glb` })
 }

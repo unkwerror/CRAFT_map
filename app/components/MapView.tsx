@@ -88,6 +88,18 @@ export default function MapView({
         attributionControl: { compact: true },
       })
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+      // «Моё местоположение»: кнопка + пульсирующая точка юзера и круг точности.
+      // Требует HTTPS (на проде есть). Трекинг слетает в «пассивный» режим при ручном
+      // перемещении карты — повторный клик снова центрирует.
+      map.addControl(
+        new maplibregl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserLocation: true,
+          showAccuracyCircle: true,
+        }),
+        'bottom-right'
+      )
       map.on('load', () => setReady(true))
 
       // клик с расширенной зоной тапа (±14px ≈ 40px hit area)

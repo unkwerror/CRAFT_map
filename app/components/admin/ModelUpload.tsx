@@ -7,7 +7,7 @@ interface Props {
   onChange: (url: string | null) => void
 }
 
-/** Загрузка 3D-модели памятника (.glb). Оптимизацию (Draco/meshopt, текстуры) делают заранее. */
+/** Загрузка 3D-модели памятника (.glb). Оптимизация (meshopt + WebP-текстуры) выполняется на сервере автоматически. */
 export default function ModelUpload({ modelUrl, onChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
@@ -52,7 +52,7 @@ export default function ModelUpload({ modelUrl, onChange }: Props) {
           className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-6 text-sm transition-colors hover:bg-slate-50"
         >
           <span className="text-slate-600">{busy ? 'Загрузка…' : 'Загрузить .glb модель'}</span>
-          <span className="mt-1 text-xs text-slate-400">glTF 2.0 binary, ≤20 МБ (рекомендуется ≤3 МБ)</span>
+          <span className="mt-1 text-xs text-slate-400">glTF 2.0 binary, ≤20 МБ — сжатие для веба сделаем автоматически</span>
         </div>
       )}
       <input
