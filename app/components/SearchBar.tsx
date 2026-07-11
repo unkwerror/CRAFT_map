@@ -153,7 +153,7 @@ export default function SearchBar({
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="panel flex h-12 items-center gap-3 rounded-lg px-4 transition-shadow focus-within:border-[#9fb3c4] focus-within:shadow-[0_2px_8px_rgba(23,50,77,.22)]">
+      <div className="panel flex h-12 items-center gap-3 rounded-lg px-4 transition-shadow focus-within:border-[#d5a54f] focus-within:shadow-[0_3px_12px_rgba(4,14,24,.38)]">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-[var(--ink-subtle)]">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
           <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -198,7 +198,7 @@ export default function SearchBar({
               onClick={() => pick(s)}
               onMouseEnter={() => setActive(i)}
               className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                i === active ? 'bg-[#f1f3f4]' : ''
+                i === active ? 'bg-white/[0.07]' : ''
               }`}
             >
               <span aria-hidden className="w-4 shrink-0 text-center text-sm">

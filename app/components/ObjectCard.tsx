@@ -97,7 +97,7 @@ export default function ObjectCard({ id, onClose }: Props) {
   return (
     <aside
       className="panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)]
-                 shadow-[-2px_0_12px_rgba(60,64,67,0.2)]
+                 shadow-[-3px_0_18px_rgba(4,14,24,0.38)]
                  max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[82vh] max-md:rounded-t-2xl
                  md:right-0 md:top-0 md:h-full md:w-[420px] md:border-l md:border-[var(--hairline)]"
       aria-label="Карточка объекта"
@@ -328,7 +328,7 @@ export default function ObjectCard({ id, onClose }: Props) {
               <button
                 type="button"
                 onClick={() => setDonateOpen(true)}
-                className="w-full rounded-[0.625rem] border border-[#d99a32] px-4 py-3 text-sm font-semibold text-[#8a5a10] transition-colors hover:bg-[#fff6e7]"
+                className="w-full rounded-[0.625rem] border border-[#b9822d] px-4 py-3 text-sm font-semibold text-[#f4bd5c] transition-colors hover:bg-[#f0a93b]/10"
               >
                 ♥ Пожертвовать на реставрацию
               </button>

@@ -144,7 +144,7 @@ export default function MapView({
     }
   }, [])
 
-  // округа: белые границы 2px + подписи
+  // Округа: спокойная служебная граница, не конкурирующая с дорогами и маркерами.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !districts) return
@@ -158,7 +158,7 @@ export default function MapView({
       id: 'districts-line',
       type: 'line',
       source: 'districts',
-      paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 },
+      paint: { 'line-color': '#9bb1c2', 'line-width': 1.2, 'line-opacity': 0.52 },
     })
     map.addLayer({
       id: 'districts-label',
@@ -172,10 +172,10 @@ export default function MapView({
         'text-letter-spacing': 0.12,
       },
       paint: {
-        'text-color': '#ffffff',
-        'text-halo-color': '#1b3a5c',
-        'text-halo-width': 1.4,
-        'text-opacity': 0.85,
+        'text-color': '#b9cad6',
+        'text-halo-color': '#142b3e',
+        'text-halo-width': 1.2,
+        'text-opacity': 0.72,
       },
     })
   }, [ready, districts])
@@ -230,7 +230,7 @@ export default function MapView({
       paint: {
         'circle-color': 'rgba(0,0,0,0)',
         'circle-radius': 17,
-        'circle-stroke-color': '#ffffff',
+        'circle-stroke-color': '#f0a93b',
         'circle-stroke-width': 2.5,
       },
     })
@@ -253,8 +253,8 @@ export default function MapView({
       source: 'objects',
       filter: ['has', 'point_count'],
       paint: {
-        'circle-color': '#4a70a0',
-        'circle-opacity': 0.35,
+        'circle-color': '#7894a9',
+        'circle-opacity': 0.22,
         'circle-radius': ['step', ['get', 'point_count'], 20, 10, 26, 30, 33],
       },
     })
@@ -264,7 +264,9 @@ export default function MapView({
       source: 'objects',
       filter: ['has', 'point_count'],
       paint: {
-        'circle-color': '#eaf2fa',
+        'circle-color': '#213e55',
+        'circle-stroke-color': '#8fa8ba',
+        'circle-stroke-width': 1,
         'circle-radius': ['step', ['get', 'point_count'], 13, 10, 17, 30, 22],
       },
     })
@@ -278,7 +280,7 @@ export default function MapView({
         'text-font': labelFontRef.current,
         'text-size': 12,
       },
-      paint: { 'text-color': '#16324e' },
+      paint: { 'text-color': '#eef4f8' },
     })
   }, [ready, objects, categories])
 

@@ -29,7 +29,7 @@ export default function CategoryChips({
             onClick={() => onToggleCat(c.id)}
             aria-pressed={on}
             className={`panel flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors ${
-              on ? 'border-[#b9c9d6] bg-[#edf3f7] text-[#173b5d]' : 'border-transparent text-[var(--ink-subtle)] opacity-75 hover:bg-[#f8f9fa] hover:opacity-100'
+              on ? 'border-white/15 bg-[#203d54] text-[var(--ink)]' : 'border-transparent text-[var(--ink-subtle)] opacity-65 hover:bg-white/[0.04] hover:opacity-100'
             }`}
           >
             <span
@@ -47,7 +47,7 @@ export default function CategoryChips({
           type="button"
           onClick={onClearDistrict}
           title="Сбросить фильтр по округу"
-          className="panel flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-[#d99a32] bg-[#fff6e7] px-3 text-sm font-medium text-[#704b12]"
+          className="panel flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-[#9b7130] bg-[#3b352c] px-3 text-sm font-medium text-[#f4c46e]"
         >
           {activeDistrictName} округ
           <span aria-hidden className="text-[var(--ink-subtle)]">✕</span>
