@@ -146,9 +146,9 @@ body {
   --ink: #202124;
   --ink-muted: #5f6368;
   --ink-subtle: #80868b;
-  --accent: #1a73e8;
-  --accent-hover: #1765cc;
-  --accent-ink: #ffffff;
+  --accent: #f0a93b;
+  --accent-hover: #df961f;
+  --accent-ink: #17324d;
   color: var(--ink);
 }
 .map-shell .panel {
@@ -163,6 +163,9 @@ body {
 }
 .map-shell .panel-scroll::-webkit-scrollbar-thumb {
   background: #bdc1c6;
+}
+.map-shell .btn-accent {
+  box-shadow: 0 1px 2px rgba(23, 50, 77, 0.14);
 }
 .map-shell .maplibregl-ctrl-group {
   border-radius: 8px;

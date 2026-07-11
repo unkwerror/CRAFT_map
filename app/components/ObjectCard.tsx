@@ -328,7 +328,7 @@ export default function ObjectCard({ id, onClose }: Props) {
               <button
                 type="button"
                 onClick={() => setDonateOpen(true)}
-                className="w-full rounded-[0.625rem] border border-[var(--accent)]/60 px-4 py-3 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10"
+                className="w-full rounded-[0.625rem] border border-[#d99a32] px-4 py-3 text-sm font-semibold text-[#8a5a10] transition-colors hover:bg-[#fff6e7]"
               >
                 ♥ Пожертвовать на реставрацию
               </button>
