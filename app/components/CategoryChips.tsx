@@ -19,7 +19,7 @@ export default function CategoryChips({
   onClearDistrict,
 }: Props) {
   return (
-    <div className="scrollbar-none -mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
+    <div className="scrollbar-none -mx-1 mt-2 flex max-w-full gap-2 overflow-x-auto px-1 pb-2 md:pr-12">
       {categories.map((c) => {
         const on = activeCats.has(c.id)
         return (
@@ -28,13 +28,13 @@ export default function CategoryChips({
             type="button"
             onClick={() => onToggleCat(c.id)}
             aria-pressed={on}
-            className={`panel flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-opacity ${
-              on ? '' : 'opacity-55'
+            className={`panel flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors ${
+              on ? 'border-[#a8c7fa] bg-[#e8f0fe] text-[#1967d2]' : 'text-[var(--ink-muted)] hover:bg-[#f8f9fa]'
             }`}
           >
             <span
               className="inline-block h-2 w-2 rounded-full"
-              style={{ background: on ? c.color : 'var(--ink-subtle)' }}
+              style={{ background: c.color }}
               aria-hidden
             />
             {c.title}
@@ -47,7 +47,7 @@ export default function CategoryChips({
           type="button"
           onClick={onClearDistrict}
           title="Сбросить фильтр по округу"
-          className="panel flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--accent)]/50 px-3 py-1.5 text-xs font-medium"
+          className="panel flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-[#a8c7fa] bg-[#e8f0fe] px-3 text-sm font-medium text-[#1967d2]"
         >
           {activeDistrictName} округ
           <span aria-hidden className="text-[var(--ink-subtle)]">✕</span>

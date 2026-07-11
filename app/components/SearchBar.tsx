@@ -153,7 +153,7 @@ export default function SearchBar({
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="panel flex items-center gap-2.5 rounded-full px-4 py-2.5">
+      <div className="panel flex h-12 items-center gap-3 rounded-lg px-4 transition-shadow focus-within:shadow-[0_2px_8px_rgba(60,64,67,.3)]">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-[var(--ink-subtle)]">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
           <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -169,7 +169,7 @@ export default function SearchBar({
           onKeyDown={onKeyDown}
           placeholder="Памятник, категория или округ…"
           aria-label="Поиск по карте"
-          className="w-full bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-subtle)] [&::-webkit-search-cancel-button]:hidden"
+          className="w-full bg-transparent text-[15px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-subtle)] [&::-webkit-search-cancel-button]:hidden"
         />
         {query && (
           <button
@@ -187,7 +187,7 @@ export default function SearchBar({
       </div>
 
       {open && (suggestions.length > 0 || showEmpty) && (
-        <div className="panel panel-scroll absolute inset-x-0 top-full z-30 mt-2 max-h-[50vh] overflow-y-auto rounded-2xl py-1.5">
+        <div className="panel panel-scroll absolute inset-x-0 top-full z-30 mt-2 max-h-[50vh] overflow-y-auto rounded-lg py-1.5">
           {showEmpty && (
             <p className="px-4 py-2.5 text-sm text-[var(--ink-muted)]">Ничего не найдено</p>
           )}
@@ -198,7 +198,7 @@ export default function SearchBar({
               onClick={() => pick(s)}
               onMouseEnter={() => setActive(i)}
               className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                i === active ? 'bg-white/10' : ''
+                i === active ? 'bg-[#f1f3f4]' : ''
               }`}
             >
               <span aria-hidden className="w-4 shrink-0 text-center text-sm">

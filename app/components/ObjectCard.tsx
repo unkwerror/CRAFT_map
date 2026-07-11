@@ -97,9 +97,9 @@ export default function ObjectCard({ id, onClose }: Props) {
   return (
     <aside
       className="panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)]
-                 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.6)]
+                 shadow-[-2px_0_12px_rgba(60,64,67,0.2)]
                  max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[82vh] max-md:rounded-t-2xl
-                 md:right-0 md:top-0 md:h-full md:w-[480px] md:border-l md:border-[var(--hairline)]"
+                 md:right-0 md:top-0 md:h-full md:w-[420px] md:border-l md:border-[var(--hairline)]"
       aria-label="Карточка объекта"
     >
       <button
@@ -214,7 +214,7 @@ export default function ObjectCard({ id, onClose }: Props) {
             </div>
           )}
 
-          <div className="space-y-4 p-5">
+          <div className="space-y-4 p-6">
             <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink-muted)]">
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -225,7 +225,7 @@ export default function ObjectCard({ id, onClose }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <h2 className="text-xl font-semibold leading-snug">{data.title}</h2>
+              <h2 className="text-[22px] font-medium leading-snug">{data.title}</h2>
               {data.rating !== null && <Stars rating={data.rating} />}
               {data.address && (
                 <p className="text-sm text-[var(--ink-muted)]">
@@ -321,7 +321,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                 href={`https://yandex.ru/maps/?rtext=~${data.lat},${data.lng}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-accent w-full px-4 py-3 text-sm"
+                className="btn-accent w-full rounded-lg px-4 py-3 text-sm"
               >
                 Маршрут в Яндекс.Картах →
               </a>

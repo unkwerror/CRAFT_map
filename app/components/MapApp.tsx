@@ -100,7 +100,7 @@ export default function MapApp({ categories }: Props) {
       : (districtOptions.find((d) => d.id === activeDistrict)?.name ?? null)
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden">
+    <main className="map-shell relative h-dvh w-full overflow-hidden">
       <MapView
         categories={categories}
         objects={filteredFC}
@@ -111,7 +111,8 @@ export default function MapApp({ categories }: Props) {
       />
 
       {/* Поиск: вверху по центру + чипы категорий */}
-      <div className="absolute left-1/2 top-3 z-10 w-[min(560px,calc(100vw-1.5rem))] -translate-x-1/2 md:top-4">
+      <div className="absolute inset-x-3 top-3 z-10 md:left-[324px] md:right-4 md:top-4">
+        <div className="max-w-[440px]">
         <SearchBar
           objects={objectsFC}
           categories={categories}
@@ -120,6 +121,7 @@ export default function MapApp({ categories }: Props) {
           onPickCategory={pickCategory}
           onPickDistrict={selectDistrict}
         />
+        </div>
         <CategoryChips
           categories={categories}
           activeCats={activeCats}
@@ -137,7 +139,7 @@ export default function MapApp({ categories }: Props) {
       </div>
 
       {/* Герб Тюмени — привязка к городу */}
-      <div className="panel absolute bottom-8 left-3 z-10 flex items-center gap-2.5 rounded-xl px-2.5 py-2 md:bottom-auto md:left-4 md:top-4 md:px-3 md:py-2.5">
+      <div className="panel absolute bottom-7 left-3 z-10 flex items-center gap-2.5 rounded-lg px-2.5 py-2 md:bottom-auto md:left-4 md:top-4 md:w-[292px] md:px-3 md:py-2.5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/gerb-tyumen.svg" alt="Герб Тюмени" className="h-8 w-auto md:h-10" />
         <div className="hidden md:block">
