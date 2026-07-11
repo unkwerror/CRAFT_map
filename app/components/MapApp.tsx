@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import MapView from './MapView'
-import FilterPanel from './FilterPanel'
+import SearchBar from './SearchBar'
+import CategoryChips from './CategoryChips'
 import ObjectCard from './ObjectCard'
-import type { CategoryDto, ObjectFeatureProps, StatRow } from '@/lib/types'
+import type { CategoryDto, ObjectFeatureProps } from '@/lib/types'
 
 interface Props {
   categories: CategoryDto[]
@@ -18,7 +19,6 @@ export default function MapApp({ categories }: Props) {
 
   const [objectsFC, setObjectsFC] = useState<FC | null>(null)
   const [districtsFC, setDistrictsFC] = useState<FC | null>(null)
-  const [stats, setStats] = useState<StatRow[]>([])
   const [activeCats, setActiveCats] = useState<ReadonlySet<string>>(
     () => new Set(categories.map((c) => c.id))
   )
@@ -36,16 +36,6 @@ export default function MapApp({ categories }: Props) {
       .then(setDistrictsFC)
       .catch(() => setDistrictsFC({ type: 'FeatureCollection', features: [] }))
   }, [])
-
-  // статистика считается на сервере (view/SQL), при смене категорий — перезапрос
-  useEffect(() => {
-    const all = activeCats.size === categories.length
-    const url = all ? '/api/stats' : `/api/stats?categories=${[...activeCats].join(',')}`
-    fetch(url)
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(() => setStats([]))
-  }, [activeCats, categories.length])
 
   // шаринг: /?object=<id>
   useEffect(() => {
@@ -92,10 +82,22 @@ export default function MapApp({ categories }: Props) {
     if (id !== null) setFitDistrict((p) => ({ districtId: id, tick: (p?.tick ?? 0) + 1 }))
   }
 
-  const selectDistrictByName = (name: string) => {
-    const d = districtOptions.find((o) => o.name === name)
-    if (d) selectDistrict(d.id)
+  // выбор из поиска: категория — единственный активный фильтр
+  const pickCategory = (id: string) => {
+    setActiveCats(new Set([id]))
   }
+
+  const pickObject = (id: string) => {
+    // объект мог быть скрыт фильтрами — сбрасываем их, чтобы карточка и маркер были видны
+    setActiveCats(new Set(categories.map((c) => c.id)))
+    setActiveDistrict(null)
+    setSelectedId(id)
+  }
+
+  const activeDistrictName =
+    activeDistrict === null
+      ? null
+      : (districtOptions.find((d) => d.id === activeDistrict)?.name ?? null)
 
   return (
     <main className="relative h-dvh w-full overflow-hidden">
@@ -107,23 +109,43 @@ export default function MapApp({ categories }: Props) {
         fitDistrict={fitDistrict}
         onSelect={setSelectedId}
       />
-      <FilterPanel
-        categories={categories}
-        districts={districtOptions}
-        activeCats={activeCats}
-        activeDistrict={activeDistrict}
-        stats={stats}
-        onToggleCat={(id) =>
-          setActiveCats((prev) => {
-            const nextSet = new Set(prev)
-            if (nextSet.has(id)) nextSet.delete(id)
-            else nextSet.add(id)
-            return nextSet
-          })
-        }
-        onDistrict={selectDistrict}
-        onDistrictByName={selectDistrictByName}
-      />
+
+      {/* Поиск: вверху по центру + чипы категорий */}
+      <div className="absolute left-1/2 top-3 z-10 w-[min(560px,calc(100vw-1.5rem))] -translate-x-1/2 md:top-4">
+        <SearchBar
+          objects={objectsFC}
+          categories={categories}
+          districts={districtOptions}
+          onPickObject={pickObject}
+          onPickCategory={pickCategory}
+          onPickDistrict={selectDistrict}
+        />
+        <CategoryChips
+          categories={categories}
+          activeCats={activeCats}
+          activeDistrictName={activeDistrictName}
+          onToggleCat={(id) =>
+            setActiveCats((prev) => {
+              const nextSet = new Set(prev)
+              if (nextSet.has(id)) nextSet.delete(id)
+              else nextSet.add(id)
+              return nextSet
+            })
+          }
+          onClearDistrict={() => setActiveDistrict(null)}
+        />
+      </div>
+
+      {/* Герб Тюмени — привязка к городу */}
+      <div className="panel absolute bottom-8 left-3 z-10 flex items-center gap-2.5 rounded-xl px-2.5 py-2 md:bottom-auto md:left-4 md:top-4 md:px-3 md:py-2.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/gerb-tyumen.svg" alt="Герб Тюмени" className="h-8 w-auto md:h-10" />
+        <div className="hidden md:block">
+          <p className="text-sm font-semibold leading-tight">Памятные объекты Тюмени</p>
+          <p className="text-xs text-[var(--ink-subtle)]">Интерактивная карта</p>
+        </div>
+      </div>
+
       {selectedId && <ObjectCard id={selectedId} onClose={() => setSelectedId(null)} />}
     </main>
   )

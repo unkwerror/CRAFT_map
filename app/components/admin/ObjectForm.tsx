@@ -5,7 +5,10 @@ import { useState } from 'react'
 import MiniMap from './MiniMap'
 import PhotoUpload from './PhotoUpload'
 import ModelUpload from './ModelUpload'
-import type { CategoryDto, ObjectFull, Photo } from '@/lib/types'
+import VideoUpload from './VideoUpload'
+import AudioUpload from './AudioUpload'
+import SectionsEditor from './SectionsEditor'
+import type { CategoryDto, DescriptionSection, ObjectFull, Photo, Video } from '@/lib/types'
 
 interface Props {
   categories: CategoryDto[]
@@ -21,6 +24,11 @@ export default function ObjectForm({ categories, initial }: Props) {
   const [lng, setLng] = useState<number | null>(initial?.lng ?? null)
   const [lat, setLat] = useState<number | null>(initial?.lat ?? null)
   const [photos, setPhotos] = useState<Photo[]>(initial?.photos ?? [])
+  const [videos, setVideos] = useState<Video[]>(initial?.videos ?? [])
+  const [audioUrl, setAudioUrl] = useState<string | null>(initial?.audioUrl ?? null)
+  const [audioText, setAudioText] = useState(initial?.audioText ?? '')
+  const [rating, setRating] = useState<number | null>(initial?.rating ?? null)
+  const [sections, setSections] = useState<DescriptionSection[]>(initial?.sections ?? [])
   const [modelUrl, setModelUrl] = useState<string | null>(initial?.modelUrl ?? null)
   const [published, setPublished] = useState(initial?.published ?? true)
   const [error, setError] = useState('')
@@ -30,6 +38,11 @@ export default function ObjectForm({ categories, initial }: Props) {
     e.preventDefault()
     if (lng === null || lat === null) {
       setError('Поставьте точку на карте')
+      return
+    }
+    const filledSections = sections.filter((s) => s.title.trim() && s.text.trim())
+    if (filledSections.length < sections.length) {
+      setError('Заполните заголовок и текст у всех секций (или удалите пустые)')
       return
     }
     setBusy(true)
@@ -43,6 +56,11 @@ export default function ObjectForm({ categories, initial }: Props) {
       lng,
       lat,
       photos,
+      videos,
+      audioUrl,
+      audioText: audioText || null,
+      rating,
+      sections: filledSections,
       modelUrl,
       published,
       sortWeight: 0,
@@ -103,6 +121,31 @@ export default function ObjectForm({ categories, initial }: Props) {
           />
         </label>
 
+        <div>
+          <span className="mb-1 block text-sm font-medium">Секции описания</span>
+          <span className="mb-2 block text-xs text-slate-500">
+            Дополнительные разделы карточки: «Архитектура», «История» и т.п.
+          </span>
+          <SectionsEditor sections={sections} onChange={setSections} />
+        </div>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Рейтинг (0–5)</span>
+          <input
+            type="number"
+            min={0}
+            max={5}
+            step={0.1}
+            value={rating ?? ''}
+            onChange={(e) => setRating(e.target.value === '' ? null : Number(e.target.value))}
+            placeholder="Не показывать"
+            className={inputCls}
+          />
+          <span className="mt-1 block text-xs text-slate-500">
+            Временно вручную — источник рейтинга обсуждается с заказчиком
+          </span>
+        </label>
+
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -116,6 +159,24 @@ export default function ObjectForm({ categories, initial }: Props) {
         <div>
           <span className="mb-1 block text-sm font-medium">Фотографии</span>
           <PhotoUpload photos={photos} onChange={setPhotos} />
+        </div>
+
+        <div>
+          <span className="mb-1 block text-sm font-medium">Видео</span>
+          <VideoUpload videos={videos} onChange={setVideos} />
+        </div>
+
+        <div>
+          <span className="mb-1 block text-sm font-medium">Аудиогид</span>
+          <AudioUpload audioUrl={audioUrl} onChange={setAudioUrl} />
+          <textarea
+            rows={4}
+            maxLength={20000}
+            value={audioText}
+            onChange={(e) => setAudioText(e.target.value)}
+            placeholder="Текстовая версия аудиогида (доступность: аудио + текст)"
+            className={`${inputCls} mt-2`}
+          />
         </div>
 
         <div>

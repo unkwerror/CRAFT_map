@@ -101,6 +101,28 @@ body {
   background: rgba(9, 20, 33, 0.72);
 }
 
+/* Горизонтальная лента чипов — без видимого скроллбара */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Пульсация маркеров с мероприятием на сегодня (значок в углу карточки и т.п.) */
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.soft-pulse {
+  animation: soft-pulse 1.6s ease-in-out infinite;
+}
+
 /* Тонкий скроллбар в панелях */
 .panel-scroll {
   scrollbar-width: thin;

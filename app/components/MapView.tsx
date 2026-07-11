@@ -199,6 +199,21 @@ export default function MapView({
     })
     const color = categoryColorExpr(categories)
 
+    // пульсирующее кольцо у объектов с мероприятием на сегодня (анимация ниже)
+    map.addLayer({
+      id: 'objects-event-pulse',
+      type: 'circle',
+      source: 'objects',
+      filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'hasEvent'], true]],
+      paint: {
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-radius': 13,
+        'circle-stroke-color': '#ffd166',
+        'circle-stroke-width': 2,
+        'circle-stroke-opacity': 0.9,
+      },
+    })
+
     // мягкая полупрозрачная обводка (как на референсе)
     map.addLayer({
       id: 'objects-halo',
@@ -267,6 +282,27 @@ export default function MapView({
     })
   }, [ready, objects, categories])
 
+  // анимация пульса: кольцо расширяется и гаснет (объекты с мероприятием сегодня)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const hasPulse = (objects ?? EMPTY_FC).features.some(
+      (f) => (f.properties as { hasEvent?: boolean } | null)?.hasEvent
+    )
+    if (!hasPulse || !map.getLayer('objects-event-pulse')) return
+    let raf = 0
+    const tick = () => {
+      const t = (performance.now() % 1800) / 1800
+      if (map.getLayer('objects-event-pulse')) {
+        map.setPaintProperty('objects-event-pulse', 'circle-radius', 9 + t * 14)
+        map.setPaintProperty('objects-event-pulse', 'circle-stroke-opacity', 0.9 * (1 - t))
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [ready, objects])
+
   // подсветка выбранного + плавное центрирование с offset под панель
   useEffect(() => {
     const map = mapRef.current
@@ -277,7 +313,7 @@ export default function MapView({
       map.flyTo({
         center: [selected.lng, selected.lat],
         zoom: Math.max(map.getZoom(), 13.5),
-        offset: desktop ? [-190, 0] : [0, -140],
+        offset: desktop ? [-230, 0] : [0, -140],
         duration: 700,
       })
     }

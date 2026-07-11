@@ -82,10 +82,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const [row] = await pg<{ id: string }[]>`
-      insert into objects (title, description, category_id, address, geom, photos, model_url, published, sort_weight)
+      insert into objects (title, description, category_id, address, geom, photos, videos,
+                           audio_url, audio_text, rating, sections, model_url, published, sort_weight)
       values (${d.title}, ${d.description ?? null}, ${d.categoryId}, ${d.address ?? null},
               st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
-              ${JSON.stringify(d.photos)}::jsonb, ${d.modelUrl ?? null}, ${d.published}, ${d.sortWeight})
+              ${JSON.stringify(d.photos)}::jsonb, ${JSON.stringify(d.videos)}::jsonb,
+              ${d.audioUrl ?? null}, ${d.audioText ?? null}, ${d.rating ?? null},
+              ${JSON.stringify(d.sections)}::jsonb,
+              ${d.modelUrl ?? null}, ${d.published}, ${d.sortWeight})
       returning id`
     return NextResponse.json({ id: row?.id }, { status: 201 })
   } catch (e) {

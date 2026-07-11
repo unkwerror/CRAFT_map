@@ -11,14 +11,21 @@ interface Row {
   thumb: string
   lng: number
   lat: number
+  has_event: boolean
 }
 
 /** GeoJSON FeatureCollection опубликованных объектов (лёгкие поля для карты) */
 export async function GET() {
+  // «сегодня» — по тюменскому времени, независимо от TZ сервера
   const rows = await pg<Row[]>`
     select o.id, o.title, o.category_id as category, o.district_id as district,
            coalesce(o.photos -> 0 ->> 'thumb', '') as thumb,
-           st_x(o.geom) as lng, st_y(o.geom) as lat
+           st_x(o.geom) as lng, st_y(o.geom) as lat,
+           exists (
+             select 1 from events e
+             where e.object_id = o.id
+               and (now() at time zone 'Asia/Yekaterinburg')::date between e.starts_on and e.ends_on
+           ) as has_event
     from objects o
     where o.published
     order by o.sort_weight desc, o.created_at`
@@ -34,6 +41,7 @@ export async function GET() {
         category: r.category,
         district: r.district,
         thumb: r.thumb,
+        hasEvent: r.has_event,
       },
     })),
   })

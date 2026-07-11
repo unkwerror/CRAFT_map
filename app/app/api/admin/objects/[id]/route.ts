@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pg } from '@/lib/db'
 import { requireRole } from '@/lib/guard'
 import { objectInputSchema, publishedPatchSchema, uuidSchema } from '@/lib/validation'
-import type { ObjectFull, Photo } from '@/lib/types'
+import type { DescriptionSection, ObjectFull, Photo, Video } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,13 +30,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
     lng: number
     lat: number
     photos: Photo[]
+    videos: Video[]
+    audio_url: string | null
+    audio_text: string | null
+    rating: string | null
+    sections: DescriptionSection[]
     model_url: string | null
     published: boolean
   }[]>`
     select o.id, o.title, o.description, o.category_id,
            c.title as category_title, c.color as category_color,
            d.name as district_name, o.address,
-           st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.model_url, o.published
+           st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.videos,
+           o.audio_url, o.audio_text, o.rating, o.sections, o.model_url, o.published
     from objects o
     join categories c on c.id = o.category_id
     left join districts d on d.id = o.district_id
@@ -58,8 +64,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     lng: r.lng,
     lat: r.lat,
     photos: r.photos,
+    videos: r.videos,
+    audioUrl: r.audio_url,
+    audioText: r.audio_text,
+    rating: r.rating === null ? null : Number(r.rating),
+    sections: r.sections,
     modelUrl: r.model_url,
     published: r.published,
+    events: [],
   }
   return NextResponse.json(dto)
 }
@@ -86,7 +98,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     set title = ${d.title}, description = ${d.description ?? null},
         category_id = ${d.categoryId}, address = ${d.address ?? null},
         geom = st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
-        photos = ${JSON.stringify(d.photos)}::jsonb, model_url = ${d.modelUrl ?? null},
+        photos = ${JSON.stringify(d.photos)}::jsonb,
+        videos = ${JSON.stringify(d.videos)}::jsonb,
+        audio_url = ${d.audioUrl ?? null}, audio_text = ${d.audioText ?? null},
+        rating = ${d.rating ?? null},
+        sections = ${JSON.stringify(d.sections)}::jsonb,
+        model_url = ${d.modelUrl ?? null},
         published = ${d.published}, sort_weight = ${d.sortWeight}
     where id = ${id}
     returning id`
