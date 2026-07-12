@@ -2,8 +2,12 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { pg } from '@/lib/db'
+import { normalizePhotos, normalizeSections, normalizeVideos } from '@/lib/object-content'
 import { uuidSchema } from '@/lib/validation'
 import type { DescriptionSection, Photo, Video } from '@/lib/types'
+import AudioGuide from '@/components/AudioGuide'
+import ObjectMediaGallery from '@/components/ObjectMediaGallery'
+import ObjectSections from '@/components/ObjectSections'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +26,7 @@ interface Row {
   audio_url: string | null
   audio_text: string | null
   sections: DescriptionSection[]
+  model_url: string | null
 }
 
 async function getObject(id: string): Promise<Row | null> {
@@ -30,14 +35,25 @@ async function getObject(id: string): Promise<Row | null> {
     select o.id, o.title, o.description,
            c.title as category_title, c.color as category_color,
            d.name as district_name, o.address,
-           st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos,
-           o.videos, o.audio_url, o.audio_text, o.sections
+           st_x(o.geom) as lng, st_y(o.geom) as lat,
+           coalesce(o.photos, '[]'::jsonb) as photos,
+           coalesce(o.videos, '[]'::jsonb) as videos,
+           o.audio_url, o.audio_text,
+           coalesce(o.sections, '[]'::jsonb) as sections,
+           o.model_url
     from objects o
     join categories c on c.id = o.category_id
     left join districts d on d.id = o.district_id
     where o.id = ${id} and o.published
     limit 1`
-  return rows[0] ?? null
+  const row = rows[0]
+  if (!row) return null
+  return {
+    ...row,
+    photos: normalizePhotos(row.photos),
+    videos: normalizeVideos(row.videos),
+    sections: normalizeSections(row.sections),
+  }
 }
 
 type Params = { params: Promise<{ id: string }> }
@@ -90,61 +106,20 @@ export default async function ObjectPage({ params }: Params) {
         </p>
       )}
 
-      {obj.photos.length > 0 && (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {obj.photos.map((p) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={p.original}
-              src={p.original}
-              alt={p.alt ?? obj.title}
-              className="w-full rounded-xl object-cover"
-              loading="lazy"
-            />
-          ))}
-        </div>
-      )}
+      <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--hairline)]">
+        <ObjectMediaGallery
+          objectId={obj.id}
+          title={obj.title}
+          photos={obj.photos}
+          videos={obj.videos}
+          modelUrl={obj.model_url}
+        />
+      </div>
 
-      {obj.videos.length > 0 && (
-        <div className="mt-5 space-y-3">
-          {obj.videos.map((v) => (
-            <video
-              key={v.src}
-              src={v.src}
-              poster={v.poster}
-              controls
-              playsInline
-              preload="metadata"
-              className="w-full rounded-xl bg-black"
-            />
-          ))}
-        </div>
-      )}
-
-      {obj.audio_url && (
-        <div className="mt-6">
-          <h2 className="eyebrow mb-2">Аудиогид</h2>
-          <audio src={obj.audio_url} controls preload="metadata" className="h-9 w-full" />
-          {obj.audio_text && (
-            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/85">
-              {obj.audio_text}
-            </p>
-          )}
-        </div>
-      )}
-
-      {obj.description && (
-        <p className="mt-6 whitespace-pre-line leading-relaxed text-[var(--ink)]/85">
-          {obj.description}
-        </p>
-      )}
-
-      {obj.sections.map((s) => (
-        <section key={s.title} className="mt-6">
-          <h2 className="eyebrow mb-1.5">{s.title}</h2>
-          <p className="whitespace-pre-line leading-relaxed text-[var(--ink)]/85">{s.text}</p>
-        </section>
-      ))}
+      <div className="mt-5 space-y-4">
+        <AudioGuide audioUrl={obj.audio_url} audioText={obj.audio_text} />
+        <ObjectSections objectId={obj.id} description={obj.description} sections={obj.sections} />
+      </div>
 
       <a
         href={`https://yandex.ru/maps/?rtext=~${obj.lat},${obj.lng}`}

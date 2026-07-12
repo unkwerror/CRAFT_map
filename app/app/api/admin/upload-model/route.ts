@@ -11,6 +11,39 @@ export const dynamic = 'force-dynamic'
 const MAX_SIZE = 20 * 1024 * 1024 // 20 МБ; на веб рекомендуется ≤3 МБ (Draco/meshopt)
 // glTF-binary начинается с магии "glTF" (0x676c5446)
 const GLTF_MAGIC = 0x46546c67
+const GLTF_JSON_CHUNK = 0x4e4f534a
+const EXTERNAL_DECODER_EXTENSIONS = new Set([
+  'KHR_draco_mesh_compression',
+  'KHR_texture_basisu',
+])
+
+function externalDecoderExtensions(buffer: Buffer): string[] {
+  let offset = 12
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32LE(offset)
+    const type = buffer.readUInt32LE(offset + 4)
+    const start = offset + 8
+    const end = start + length
+    if (end > buffer.length) return []
+    if (type === GLTF_JSON_CHUNK) {
+      try {
+        const json = JSON.parse(buffer.subarray(start, end).toString('utf8').replace(/\u0000+$/u, '')) as {
+          extensionsUsed?: unknown
+        }
+        return Array.isArray(json.extensionsUsed)
+          ? json.extensionsUsed.filter(
+              (extension): extension is string =>
+                typeof extension === 'string' && EXTERNAL_DECODER_EXTENSIONS.has(extension)
+            )
+          : []
+      } catch {
+        return []
+      }
+    }
+    offset = end
+  }
+  return []
+}
 
 /** Загрузка 3D-модели памятника: только .glb (glTF 2.0 binary) */
 export async function POST(req: NextRequest) {
@@ -39,13 +72,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Файл не является корректным .glb' }, { status: 400 })
   }
 
-  // Автооптимизация под веб (meshopt-геометрия + WebP-текстуры). При любой
-  // ошибке оптимизатора сохраняем исходный файл — загрузка не должна падать.
+  // Автооптимизация под веб (meshopt-геометрия + WebP-текстуры). Для обычного
+  // GLB при сбое можно безопасно сохранить оригинал. Draco/KTX2 без успешной
+  // конвертации не принимаем: иначе админка покажет успех, а публичный CSP
+  // заблокирует внешние декодеры model-viewer.
   let out: Buffer = buf
   try {
     out = await optimizeGlb(buf)
   } catch {
     out = buf
+  }
+
+  const unsupportedExtensions = externalDecoderExtensions(out)
+  if (unsupportedExtensions.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Не удалось подготовить модель для сайта (${unsupportedExtensions.join(', ')}). Экспортируйте GLB без Draco/KTX2 — сервер применит совместимое сжатие автоматически.`,
+      },
+      { status: 422 }
+    )
   }
 
   const id = randomUUID()

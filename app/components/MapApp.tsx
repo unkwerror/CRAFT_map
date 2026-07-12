@@ -186,7 +186,7 @@ export default function MapApp({ categories }: Props) {
         onError={() => setMapIssue(true)}
       />
 
-      <header className={`map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId ? 'md:max-xl:pr-[460px]' : ''}`}>
+      <header className={`map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId ? 'md:pr-[460px]' : ''}`}>
         <div className="mx-auto flex max-w-[1480px] items-start gap-3">
           <div className="brand-panel panel pointer-events-auto hidden h-14 w-[252px] shrink-0 items-center gap-3 rounded-2xl px-3.5 2xl:flex">
             <div className="brand-panel__crest">

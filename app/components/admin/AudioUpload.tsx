@@ -1,17 +1,24 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Props {
   audioUrl: string | null
   onChange: (url: string | null) => void
+  onUploadingChange?: (isUploading: boolean) => void
 }
 
 /** Загрузка аудио аудиогида (mp3/m4a/ogg/wav, ≤30 МБ) */
-export default function AudioUpload({ audioUrl, onChange }: Props) {
+export default function AudioUpload({ audioUrl, onChange, onUploadingChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    onUploadingChange?.(busy)
+  }, [busy, onUploadingChange])
+
+  useEffect(() => () => onUploadingChange?.(false), [onUploadingChange])
 
   async function upload(file: File) {
     setBusy(true)
@@ -42,8 +49,9 @@ export default function AudioUpload({ audioUrl, onChange }: Props) {
       ) : (
         <button
           type="button"
+          disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className="flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-600 transition-colors hover:bg-slate-50"
+          className="flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-wait disabled:opacity-70"
         >
           {busy ? 'Загрузка аудио…' : 'Добавить аудио аудиогида'}
           <span className="mt-1 text-xs text-slate-400">MP3/M4A/OGG/WAV до 30 МБ</span>

@@ -15,15 +15,30 @@ interface Props {
 export default function ModelViewer({ src, alt }: Props) {
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     import('@google/model-viewer')
-      .then(() => !cancelled && setReady(true))
+      .then(({ ModelViewerElement }) => {
+        // В установленном @google/model-viewer MeshoptDecoder встроен в bundle,
+        // но активируется только после загрузки meshoptDecoderLocation. Локальный
+        // bootstrap проходит production CSP и не требует внешнего CDN.
+        ModelViewerElement.meshoptDecoderLocation = '/model-viewer-meshopt-bootstrap.js'
+        if (!cancelled) setReady(true)
+      })
       .catch(() => !cancelled && setFailed(true))
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReducedMotion(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
   }, [])
 
   if (failed) {
@@ -47,7 +62,7 @@ export default function ModelViewer({ src, alt }: Props) {
       src={src}
       alt={alt ?? '3D-модель памятника'}
       camera-controls
-      auto-rotate
+      auto-rotate={!reducedMotion}
       auto-rotate-delay={0}
       rotation-per-second="20deg"
       shadow-intensity="1"

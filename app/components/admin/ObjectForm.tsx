@@ -15,6 +15,8 @@ interface Props {
   initial?: ObjectFull
 }
 
+const MEDIA_UPLOAD_MESSAGE = 'Дождитесь загрузки медиа'
+
 export default function ObjectForm({ categories, initial }: Props) {
   const router = useRouter()
   const [title, setTitle] = useState(initial?.title ?? '')
@@ -34,9 +36,15 @@ export default function ObjectForm({ categories, initial }: Props) {
   const [sortWeight, setSortWeight] = useState(initial?.sortWeight ?? 0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [videoUploading, setVideoUploading] = useState(false)
+  const [audioUploading, setAudioUploading] = useState(false)
+  const [modelUploading, setModelUploading] = useState(false)
+  const mediaUploading = photoUploading || videoUploading || audioUploading || modelUploading
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (mediaUploading) return
     if (lng === null || lat === null) {
       setError('Поставьте точку на карте')
       return
@@ -175,17 +183,17 @@ export default function ObjectForm({ categories, initial }: Props) {
 
         <div>
           <span className="mb-1 block text-sm font-medium">Фотографии</span>
-          <PhotoUpload photos={photos} onChange={setPhotos} />
+          <PhotoUpload photos={photos} onChange={setPhotos} onUploadingChange={setPhotoUploading} />
         </div>
 
         <div>
           <span className="mb-1 block text-sm font-medium">Видео</span>
-          <VideoUpload videos={videos} onChange={setVideos} />
+          <VideoUpload videos={videos} onChange={setVideos} onUploadingChange={setVideoUploading} />
         </div>
 
         <div>
           <span className="mb-1 block text-sm font-medium">Аудиогид</span>
-          <AudioUpload audioUrl={audioUrl} onChange={setAudioUrl} />
+          <AudioUpload audioUrl={audioUrl} onChange={setAudioUrl} onUploadingChange={setAudioUploading} />
           <textarea
             rows={4}
             maxLength={20000}
@@ -198,7 +206,7 @@ export default function ObjectForm({ categories, initial }: Props) {
 
         <div>
           <span className="mb-1 block text-sm font-medium">3D-модель (.glb)</span>
-          <ModelUpload modelUrl={modelUrl} onChange={setModelUrl} />
+          <ModelUpload modelUrl={modelUrl} onChange={setModelUrl} onUploadingChange={setModelUploading} />
         </div>
       </div>
 
@@ -235,15 +243,26 @@ export default function ObjectForm({ categories, initial }: Props) {
           </label>
         </div>
 
+        {mediaUploading && (
+          <p className="text-sm font-medium text-amber-700" role="status">
+            {MEDIA_UPLOAD_MESSAGE} — сохранение станет доступно автоматически.
+          </p>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <div className="flex gap-3 pt-2">
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row">
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || mediaUploading}
             className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            {busy ? 'Сохраняем…' : initial ? 'Сохранить изменения' : 'Создать объект'}
+            {busy
+              ? 'Сохраняем…'
+              : mediaUploading
+                ? 'Загрузка медиа…'
+                : initial
+                  ? 'Сохранить изменения'
+                  : 'Создать объект'}
           </button>
           <button
             type="button"

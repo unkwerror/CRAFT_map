@@ -103,6 +103,8 @@ export interface AdminObjectRow {
   categoryId: string
   districtName: string | null
   address: string | null
+  lng: number | null
+  lat: number | null
   published: boolean
   sortWeight: number
   photoCount: number

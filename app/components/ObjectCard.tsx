@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { EventDto, ObjectFull } from '@/lib/types'
-import ModelViewer from './ModelViewer'
+import AudioGuide from './AudioGuide'
+import ObjectMediaGallery from './ObjectMediaGallery'
+import ObjectSections from './ObjectSections'
 
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL
 
@@ -11,10 +13,6 @@ interface Props {
   id: string
   onClose: () => void
 }
-
-type MediaItem =
-  | { type: 'photo'; src: string; alt?: string }
-  | { type: 'video'; src: string; poster?: string; alt?: string }
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
@@ -50,26 +48,21 @@ function Stars({ rating }: { rating: number }) {
 export default function ObjectCard({ id, onClose }: Props) {
   const [data, setData] = useState<ObjectFull | null>(null)
   const [error, setError] = useState(false)
-  const [mediaIdx, setMediaIdx] = useState(0)
-  const [view, setView] = useState<'media' | '3d'>('media')
-  const [audioOpen, setAudioOpen] = useState(false)
-  const [textOpen, setTextOpen] = useState(false)
+  const [eventsOpen, setEventsOpen] = useState(false)
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const [requestKey, setRequestKey] = useState(0)
   const [mobileModal, setMobileModal] = useState(false)
-  const touchX = useRef<number | null>(null)
+  const sheetTouchY = useRef<number | null>(null)
   const panelRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
+  const titleId = useId()
   onCloseRef.current = onClose
 
   useEffect(() => {
     let cancelled = false
     setData(null)
     setError(false)
-    setMediaIdx(0)
-    setView('media')
-    setAudioOpen(false)
-    setTextOpen(false)
+    setEventsOpen(false)
     setShareState('idle')
     fetch(`/api/objects/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -91,6 +84,37 @@ export default function ObjectCard({ id, onClose }: Props) {
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
+
+  // На телефоне это настоящий modal bottom sheet: карта и поиск под ним недоступны.
+  useEffect(() => {
+    if (!mobileModal || !panelRef.current) return
+    const sheet = panelRef.current
+    const shell = sheet.closest('.map-shell')
+    if (!shell) return
+    const backdrop = shell.querySelector('[data-object-sheet-backdrop]')
+    const siblings = Array.from(shell.children).filter(
+      (element) => element !== sheet && element !== backdrop
+    ) as HTMLElement[]
+    const previous = siblings.map((element) => ({
+      element,
+      inert: element.inert,
+      ariaHidden: element.getAttribute('aria-hidden'),
+    }))
+    const previousOverflow = document.body.style.overflow
+    for (const element of siblings) {
+      element.inert = true
+      element.setAttribute('aria-hidden', 'true')
+    }
+    document.body.style.overflow = 'hidden'
+    return () => {
+      for (const item of previous) {
+        item.element.inert = item.inert
+        if (item.ariaHidden === null) item.element.removeAttribute('aria-hidden')
+        else item.element.setAttribute('aria-hidden', item.ariaHidden)
+      }
+      document.body.style.overflow = previousOverflow
+    }
+  }, [mobileModal])
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
@@ -155,36 +179,44 @@ export default function ObjectCard({ id, onClose }: Props) {
     window.setTimeout(() => setShareState('idle'), 1800)
   }
 
-  // фото и видео — в одной галерее (как в Яндекс.Картах)
-  const media: MediaItem[] = [
-    ...(data?.photos ?? []).map((p) => ({ type: 'photo' as const, src: p.original, alt: p.alt })),
-    ...(data?.videos ?? []).map((v) => ({
-      type: 'video' as const,
-      src: v.src,
-      poster: v.poster,
-      alt: v.alt,
-    })),
-  ]
-  const item = media[mediaIdx]
-
-  const prev = () => setMediaIdx((i) => (i - 1 + media.length) % media.length)
-  const next = () => setMediaIdx((i) => (i + 1) % media.length)
-
   const todayEvents = data?.events.filter((e) => e.isToday) ?? []
   const upcomingEvents = data?.events.filter((e) => !e.isToday) ?? []
+  const shownUpcomingEvents = eventsOpen ? upcomingEvents : upcomingEvents.slice(0, 2)
 
   return (
-    <aside
-      ref={panelRef}
-      tabIndex={-1}
-      role="dialog"
-      aria-modal={mobileModal ? true : undefined}
-      className="object-sheet panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)] outline-none
-                 max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[86vh] max-md:rounded-t-[24px]
-                 md:right-0 md:top-0 md:h-full md:w-[440px] md:border-l md:border-[var(--hairline)]"
-      aria-label="Карточка объекта"
-    >
-      <div className="absolute left-1/2 top-2 z-10 h-1 w-9 -translate-x-1/2 rounded-full bg-white/35 md:hidden" aria-hidden />
+    <>
+      <div
+        data-object-sheet-backdrop
+        className="object-sheet-backdrop absolute inset-0 z-[19] bg-black/55 md:hidden"
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal={mobileModal ? true : undefined}
+        aria-labelledby={data ? titleId : undefined}
+        aria-label={data ? undefined : 'Карточка объекта'}
+        className="object-sheet panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)] outline-none
+                   max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[92dvh] max-md:rounded-t-[26px]
+                   md:right-0 md:top-0 md:h-full md:w-[440px] md:border-l md:border-[var(--hairline)]"
+      >
+      <div
+        className="absolute left-1/2 top-0 z-20 flex h-7 w-20 -translate-x-1/2 items-center justify-center md:hidden"
+        onTouchStart={(event) => {
+          sheetTouchY.current = event.touches[0]?.clientY ?? null
+        }}
+        onTouchEnd={(event) => {
+          const start = sheetTouchY.current
+          const end = event.changedTouches[0]?.clientY
+          sheetTouchY.current = null
+          if (start !== null && end !== undefined && end - start > 55) onClose()
+        }}
+        aria-hidden
+      >
+        <span className="h-1 w-9 rounded-full bg-white/35" />
+      </div>
       <button
         type="button"
         onClick={onClose}
@@ -220,115 +252,15 @@ export default function ObjectCard({ id, onClose }: Props) {
 
       {data && (
         <div className="flex min-h-full flex-col">
-          {/* Переключатель Фото / 3D-модель */}
-          {data.modelUrl && (
-            <div className="absolute left-3 top-3 z-10 flex gap-0.5 rounded-lg border border-white/10 bg-black/40 p-0.5 text-xs font-medium backdrop-blur">
-              <button
-                type="button"
-                onClick={() => setView('media')}
-                className={`rounded-md px-2.5 py-1 transition-colors ${view === 'media' ? 'bg-white/95 text-[var(--surface)]' : 'text-white/70 hover:text-white'}`}
-              >
-                Фото и видео
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('3d')}
-                className={`rounded-md px-2.5 py-1 transition-colors ${view === '3d' ? 'bg-white/95 text-[var(--surface)]' : 'text-white/70 hover:text-white'}`}
-              >
-                3D-модель
-              </button>
-            </div>
-          )}
+          <ObjectMediaGallery
+            objectId={data.id}
+            title={data.title}
+            photos={data.photos}
+            videos={data.videos}
+            modelUrl={data.modelUrl}
+          />
 
-          {/* Медиа: 3D-модель или галерея фото+видео */}
-          {view === '3d' && data.modelUrl ? (
-            <div className="aspect-[4/3] w-full bg-[var(--surface-2)]">
-              <ModelViewer src={data.modelUrl} alt={data.title} />
-            </div>
-          ) : media.length > 0 ? (
-            <div
-              className="relative aspect-[4/3] w-full select-none bg-black/20"
-              onTouchStart={(e) => {
-                touchX.current = e.touches[0]?.clientX ?? null
-              }}
-              onTouchEnd={(e) => {
-                const start = touchX.current
-                const end = e.changedTouches[0]?.clientX
-                touchX.current = null
-                if (start === null || end === undefined || media.length < 2) return
-                if (end - start > 40) prev()
-                if (start - end > 40) next()
-              }}
-            >
-              {item?.type === 'video' ? (
-                <video
-                  key={item.src}
-                  src={item.src}
-                  poster={item.poster}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="object-media h-full w-full bg-black object-contain"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={item?.src}
-                  src={item?.src ?? ''}
-                  alt={item?.alt ?? data.title}
-                  decoding="async"
-                  className="object-media h-full w-full object-cover"
-                />
-              )}
-              {media.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={prev}
-                    aria-label="Предыдущее"
-                    className="btn-ghost absolute left-2 top-1/2 h-11 w-11 -translate-y-1/2 text-lg"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    onClick={next}
-                    aria-label="Следующее"
-                    className="btn-ghost absolute right-2 top-1/2 h-11 w-11 -translate-y-1/2 text-lg"
-                  >
-                    ›
-                  </button>
-                  <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-1.5">
-                    {media.map((m, i) => (
-                      <span
-                        key={m.src}
-                        className={`h-1.5 rounded-full transition-all ${i === mediaIdx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`}
-                      />
-                    ))}
-                  </div>
-                  {!data.modelUrl && (
-                    <span className="absolute left-3 top-3 rounded-lg border border-white/10 bg-black/45 px-2 py-1 text-[11px] font-medium text-white/90 backdrop-blur">
-                      {mediaIdx + 1} / {media.length}
-                    </span>
-                  )}
-                </>
-              )}
-              {item?.type !== 'video' && media.some((m) => m.type === 'video') && (
-                <span className="absolute bottom-2.5 right-2.5 rounded-md bg-black/55 px-2 py-0.5 text-[11px] text-white/90 backdrop-blur">
-                  ▶ есть видео
-                </span>
-              )}
-            </div>
-          ) : (
-            <div className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--surface-2)] text-[var(--ink-subtle)]">
-              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" stroke="currentColor" strokeWidth="1.3" />
-                <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="1.3" />
-              </svg>
-            </div>
-          )}
-
-          <div className="object-content flex flex-1 flex-col gap-4 p-6">
+          <div className="object-content flex flex-1 flex-col gap-3.5 p-4 pb-5 md:gap-4 md:p-6">
             <div
               className="object-category-badge flex w-fit items-center gap-2 rounded-full px-2.5 py-1.5 text-xs font-semibold"
               style={{ '--category-color': data.categoryColor } as CSSProperties}
@@ -342,19 +274,30 @@ export default function ObjectCard({ id, onClose }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <h2 className="text-[22px] font-medium leading-snug">{data.title}</h2>
+              <h2 id={titleId} className="text-xl font-semibold leading-snug tracking-[-0.015em] md:text-[22px]">{data.title}</h2>
               {data.rating !== null && <Stars rating={data.rating} />}
-              {data.address && (
-                <p className="text-sm text-[var(--ink-muted)]">
-                  {data.address}
-                  {data.districtName ? ` · ${data.districtName} округ` : ''}
+              {(data.address || data.districtName) && (
+                <p className="flex items-start gap-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
+                  <svg className="mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" stroke="currentColor" strokeWidth="1.6" />
+                    <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                  <span>
+                    {data.address}
+                    {data.address && data.districtName ? ' · ' : ''}
+                    {data.districtName ? `${data.districtName} округ` : ''}
+                  </span>
                 </p>
               )}
             </div>
 
             {/* Мероприятия: сегодняшние выделены */}
             {(todayEvents.length > 0 || upcomingEvents.length > 0) && (
-              <div className="space-y-2">
+              <section className="space-y-2" aria-labelledby={`${titleId}-events`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 id={`${titleId}-events`} className="text-sm font-semibold">Мероприятия</h3>
+                  <span className="text-[11px] text-[var(--ink-subtle)]">{todayEvents.length + upcomingEvents.length}</span>
+                </div>
                 {todayEvents.map((e) => (
                   <div
                     key={e.id}
@@ -370,7 +313,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                     )}
                   </div>
                 ))}
-                {upcomingEvents.map((e) => (
+                {shownUpcomingEvents.map((e) => (
                   <div key={e.id} className="rounded-xl border border-[var(--hairline)] bg-white/[0.03] p-3">
                     <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink-muted)]">
                       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden><rect x="2" y="3.5" width="12" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.3"/><path d="M5 2v3m6-3v3M2 7h12" stroke="currentColor" strokeWidth="1.3"/></svg>
@@ -382,44 +325,22 @@ export default function ObjectCard({ id, onClose }: Props) {
                     )}
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Аудиогид: аудио + текстовая версия */}
-            {data.audioUrl && (
-              <div className="rounded-xl border border-[var(--hairline)] bg-white/[0.03] p-3">
-                <div className="flex items-center justify-between gap-3">
+                {upcomingEvents.length > 2 && (
                   <button
                     type="button"
-                    onClick={() => setAudioOpen((v) => !v)}
-                    className="flex items-center gap-2 text-sm font-medium"
-                    aria-expanded={audioOpen}
+                    onClick={() => setEventsOpen((open) => !open)}
+                    aria-expanded={eventsOpen}
+                    className="min-h-10 w-full rounded-xl text-xs font-semibold text-[var(--ink-muted)] hover:bg-white/[0.04] hover:text-[var(--ink)]"
                   >
-                    <span className="btn-accent h-10 w-10 rounded-full text-xs" aria-hidden>
-                      {audioOpen ? '▮▮' : '▶'}
-                    </span>
-                    Аудиогид
+                    {eventsOpen ? 'Скрыть остальные' : `Ещё ${upcomingEvents.length - 2}`}
                   </button>
-                  {data.audioText && (
-                    <button
-                      type="button"
-                      onClick={() => setTextOpen((v) => !v)}
-                      className="text-xs text-[var(--ink-muted)] underline decoration-dotted underline-offset-2 hover:text-[var(--ink)]"
-                    >
-                      {textOpen ? 'Скрыть текст' : 'Читать текстом'}
-                    </button>
-                  )}
-                </div>
-                {audioOpen && (
-                  <audio src={data.audioUrl} controls autoPlay className="mt-3 h-9 w-full" />
                 )}
-                {textOpen && data.audioText && (
-                  <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/85">
-                    {data.audioText}
-                  </p>
-                )}
-              </div>
+              </section>
             )}
+
+            <AudioGuide audioUrl={data.audioUrl} audioText={data.audioText} />
+
+            <ObjectSections objectId={data.id} description={data.description} sections={data.sections} />
 
             {DONATION_URL && (
               <a
@@ -433,28 +354,15 @@ export default function ObjectCard({ id, onClose }: Props) {
               </a>
             )}
 
-            {data.description && (
-              <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/85">
-                {data.description}
-              </p>
-            )}
-
-            {/* Секции описания («Архитектура», «История», …) */}
-            {data.sections.map((s) => (
-              <section key={s.title}>
-                <h3 className="eyebrow mb-1.5">{s.title}</h3>
-                <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/85">{s.text}</p>
-              </section>
-            ))}
-
-            <div className="object-actions sticky bottom-0 z-[1] -mx-6 -mb-6 mt-auto grid grid-cols-[1fr_auto] gap-2 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5">
+            <div className="object-actions sticky bottom-0 z-[1] -mx-4 -mb-5 mt-auto grid grid-cols-[1fr_auto] gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 md:-mx-6 md:-mb-6 md:px-6 md:pb-6 md:pt-5">
               <a
                 href={`https://yandex.ru/maps/?rtext=~${data.lat},${data.lng}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-accent min-h-12 w-full rounded-xl px-4 py-3 text-sm"
               >
-                Маршрут в Яндекс Картах
+                <span className="md:hidden">Построить маршрут</span>
+                <span className="hidden md:inline">Маршрут в Яндекс Картах</span>
               </a>
               <button
                 type="button"
@@ -463,7 +371,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                 aria-label="Поделиться объектом"
               >
                 {shareState === 'copied' ? (
-                  <span className="text-xs text-[var(--accent)]">Скопировано</span>
+                  <span className="text-xs text-[var(--accent)]" role="status">Скопировано</span>
                 ) : (
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden><circle cx="18" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.7"/><circle cx="6" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.7"/><circle cx="18" cy="19" r="2.5" stroke="currentColor" strokeWidth="1.7"/><path d="m8.2 10.8 7.5-4.5m-7.5 6.9 7.5 4.5" stroke="currentColor" strokeWidth="1.7"/></svg>
                 )}
@@ -472,6 +380,7 @@ export default function ObjectCard({ id, onClose }: Props) {
           </div>
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   )
 }

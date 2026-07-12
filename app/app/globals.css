@@ -489,9 +489,43 @@ textarea {
   background: linear-gradient(180deg, #13222d 0, #101d27 46%, #0e1a23 100%) !important;
   box-shadow: -20px 0 54px -34px rgba(2, 8, 13, 0.9);
   animation: sheet-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  overscroll-behavior: contain;
+}
+.object-sheet-backdrop {
+  animation: object-backdrop-in 180ms ease-out both;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 .object-content {
   animation: object-content-in 340ms 70ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.object-gallery {
+  position: relative;
+  flex: 0 0 auto;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.object-gallery__stage:focus-visible {
+  outline: 2px solid rgba(226, 235, 241, 0.72);
+  outline-offset: -3px;
+}
+.object-gallery__rail {
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.object-gallery__thumb {
+  scroll-snap-align: start;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: 0.66;
+  transition: opacity 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.object-gallery__thumb:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.object-gallery__thumb--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(239, 173, 69, 0.28);
+  opacity: 1;
 }
 .object-media {
   animation: media-in 240ms ease-out both;
@@ -500,6 +534,39 @@ textarea {
   border: 1px solid color-mix(in srgb, var(--category-color) 38%, rgba(255, 255, 255, 0.08));
   background: color-mix(in srgb, var(--category-color) 13%, rgba(255, 255, 255, 0.03));
   color: color-mix(in srgb, var(--category-color) 48%, white);
+}
+.object-audio__icon {
+  border: 1px solid rgba(239, 173, 69, 0.24);
+  background: rgba(239, 173, 69, 0.09);
+  color: var(--accent);
+}
+.object-audio__play {
+  border: 1px solid rgba(239, 173, 69, 0.28);
+  background: rgba(239, 173, 69, 0.1);
+  color: var(--accent);
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.object-audio__play:hover {
+  border-color: rgba(239, 173, 69, 0.48);
+  background: rgba(239, 173, 69, 0.16);
+  transform: translateY(-1px);
+}
+.object-disclosure__chevron {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--ink-subtle);
+  font-size: 16px;
+  transition: color 150ms ease, transform 180ms ease;
+}
+.object-disclosure__chevron--open {
+  color: var(--accent);
+  transform: rotate(180deg);
+}
+.object-reveal {
+  animation: object-reveal-in 170ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .object-actions {
   border-top: 1px solid rgba(255, 255, 255, 0.075);
@@ -644,6 +711,14 @@ textarea {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes object-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes object-reveal-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @keyframes media-in {
   from { opacity: 0.55; transform: scale(1.015); }
   to { opacity: 1; transform: scale(1); }
@@ -663,6 +738,13 @@ textarea {
   .object-sheet {
     animation-name: sheet-up;
     box-shadow: 0 -24px 56px -32px rgba(2, 8, 13, 0.95);
+    scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+  .object-skeleton__media {
+    aspect-ratio: 16 / 10;
+  }
+  .object-gallery__switch {
+    top: 10px;
   }
   .map-shell .maplibregl-ctrl-bottom-right {
     bottom: max(3.75rem, env(safe-area-inset-bottom));

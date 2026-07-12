@@ -1,17 +1,24 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Props {
   modelUrl: string | null
   onChange: (url: string | null) => void
+  onUploadingChange?: (isUploading: boolean) => void
 }
 
 /** Загрузка 3D-модели памятника (.glb). Оптимизация (meshopt + WebP-текстуры) выполняется на сервере автоматически. */
-export default function ModelUpload({ modelUrl, onChange }: Props) {
+export default function ModelUpload({ modelUrl, onChange, onUploadingChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    onUploadingChange?.(busy)
+  }, [busy, onUploadingChange])
+
+  useEffect(() => () => onUploadingChange?.(false), [onUploadingChange])
 
   async function upload(file: File) {
     setError('')
@@ -48,8 +55,13 @@ export default function ModelUpload({ modelUrl, onChange }: Props) {
         </div>
       ) : (
         <div
-          onClick={() => inputRef.current?.click()}
-          className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-6 text-sm transition-colors hover:bg-slate-50"
+          onClick={() => {
+            if (!busy) inputRef.current?.click()
+          }}
+          aria-disabled={busy}
+          className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-6 text-sm transition-colors ${
+            busy ? 'cursor-wait opacity-70' : 'cursor-pointer hover:bg-slate-50'
+          }`}
         >
           <span className="text-slate-600">{busy ? 'Загрузка…' : 'Загрузить .glb модель'}</span>
           <span className="mt-1 text-xs text-slate-400">glTF 2.0 binary, ≤20 МБ — сжатие для веба сделаем автоматически</span>

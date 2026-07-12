@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AdminEventRow, AdminObjectRow } from '@/lib/types'
+import EventObjectPicker from './EventObjectPicker'
 
 const inputCls =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-500'
@@ -30,6 +31,9 @@ export default function EventsManager() {
   const [objects, setObjects] = useState<AdminObjectRow[]>([])
   const [form, setForm] = useState<FormState | null>(null)
   const [error, setError] = useState('')
+  const [objectError, setObjectError] = useState('')
+  const [objectsLoading, setObjectsLoading] = useState(true)
+  const [objectsLoadError, setObjectsLoadError] = useState('')
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(() => {
@@ -41,10 +45,19 @@ export default function EventsManager() {
 
   useEffect(() => {
     load()
+    setObjectsLoading(true)
+    setObjectsLoadError('')
     fetch('/api/admin/objects?sort=title&dir=asc')
-      .then((r) => r.json())
-      .then(setObjects)
-      .catch(() => setObjects([]))
+      .then(async (response) => {
+        if (!response.ok) throw new Error(String(response.status))
+        return response.json() as Promise<AdminObjectRow[]>
+      })
+      .then((data) => setObjects(Array.isArray(data) ? data : []))
+      .catch(() => {
+        setObjects([])
+        setObjectsLoadError('Не удалось загрузить памятники')
+      })
+      .finally(() => setObjectsLoading(false))
   }, [load])
 
   const objectOptions = useMemo(
@@ -55,8 +68,13 @@ export default function EventsManager() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!form) return
+    if (!form.objectId) {
+      setObjectError('Выберите памятник из списка или на карте')
+      return
+    }
     setBusy(true)
     setError('')
+    setObjectError('')
     const payload = {
       objectId: form.objectId,
       title: form.title,
@@ -89,7 +107,7 @@ export default function EventsManager() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-500">
           Памятники с мероприятием на сегодня выделяются на карте пульсацией.
         </p>
@@ -97,9 +115,10 @@ export default function EventsManager() {
           type="button"
           onClick={() => {
             setError('')
-            setForm({ ...emptyForm, objectId: objectOptions[0]?.id ?? '' })
+            setObjectError('')
+            setForm({ ...emptyForm })
           }}
-          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="min-h-11 shrink-0 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
         >
           + Мероприятие
         </button>
@@ -109,21 +128,18 @@ export default function EventsManager() {
         <form onSubmit={submit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-semibold">{form.id ? 'Редактирование' : 'Новое мероприятие'}</h2>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Памятник / локация *</span>
-            <select
-              required
-              value={form.objectId}
-              onChange={(e) => setForm({ ...form, objectId: e.target.value })}
-              className={inputCls}
-            >
-              {objectOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <EventObjectPicker
+            objects={objectOptions}
+            value={form.objectId}
+            onChange={(objectId) => {
+              setObjectError('')
+              setForm({ ...form, objectId })
+            }}
+            loading={objectsLoading}
+            loadError={objectsLoadError}
+            error={objectError}
+            disabled={busy}
+          />
 
           <label className="block">
             <span className="mb-1 block text-sm font-medium">Название *</span>
@@ -148,8 +164,8 @@ export default function EventsManager() {
             />
           </label>
 
-          <div className="flex gap-3">
-            <label className="flex-1">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label>
               <span className="mb-1 block text-sm font-medium">Дата начала *</span>
               <input
                 required
@@ -159,7 +175,7 @@ export default function EventsManager() {
                 className={inputCls}
               />
             </label>
-            <label className="flex-1">
+            <label>
               <span className="mb-1 block text-sm font-medium">Дата окончания</span>
               <input
                 type="date"
@@ -236,6 +252,7 @@ export default function EventsManager() {
                       type="button"
                       onClick={() => {
                         setError('')
+                        setObjectError('')
                         setForm({
                           id: e.id,
                           objectId: e.objectId,

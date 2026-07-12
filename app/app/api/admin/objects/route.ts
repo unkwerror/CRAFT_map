@@ -19,6 +19,8 @@ interface Row {
   category_id: string
   district_name: string | null
   address: string | null
+  lng: number | null
+  lat: number | null
   published: boolean
   sort_weight: number
   photo_count: number
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
 
   const rows = await pg<Row[]>`
     select o.id, o.title, o.category_id, d.name as district_name, o.address,
+           st_x(o.geom) as lng, st_y(o.geom) as lat,
            o.published, o.sort_weight,
            jsonb_array_length(o.photos) as photo_count, o.updated_at
     from objects o
@@ -58,6 +61,8 @@ export async function GET(req: NextRequest) {
     categoryId: r.category_id,
     districtName: r.district_name,
     address: r.address,
+    lng: r.lng,
+    lat: r.lat,
     published: r.published,
     sortWeight: r.sort_weight,
     photoCount: Number(r.photo_count),

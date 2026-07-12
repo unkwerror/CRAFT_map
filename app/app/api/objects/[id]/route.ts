@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { pg } from '@/lib/db'
+import { normalizePhotos, normalizeSections, normalizeVideos } from '@/lib/object-content'
 import { uuidSchema } from '@/lib/validation'
-import type { DescriptionSection, EventDto, ObjectFull, Photo, Video } from '@/lib/types'
+import type { EventDto, ObjectFull } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,12 +17,12 @@ interface Row {
   address: string | null
   lng: number
   lat: number
-  photos: Photo[]
-  videos: Video[]
+  photos: unknown
+  videos: unknown
   audio_url: string | null
   audio_text: string | null
   rating: string | null
-  sections: DescriptionSection[]
+  sections: unknown
   model_url: string | null
   published: boolean
   sort_weight: number
@@ -48,7 +49,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
            c.title as category_title, c.color as category_color,
            d.name as district_name, o.address,
            st_x(o.geom) as lng, st_y(o.geom) as lat,
-           o.photos, o.videos, o.audio_url, o.audio_text, o.rating, o.sections,
+           coalesce(o.photos, '[]'::jsonb) as photos,
+           coalesce(o.videos, '[]'::jsonb) as videos,
+           o.audio_url, o.audio_text, o.rating,
+           coalesce(o.sections, '[]'::jsonb) as sections,
            o.model_url, o.published, o.sort_weight
     from objects o
     join categories c on c.id = o.category_id
@@ -79,6 +83,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     endsOn: e.ends_on,
     isToday: e.is_today,
   }))
+  const photos = normalizePhotos(r.photos)
+  const videos = normalizeVideos(r.videos)
+  const sections = normalizeSections(r.sections)
 
   const dto: ObjectFull = {
     id: r.id,
@@ -91,12 +98,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     address: r.address,
     lng: r.lng,
     lat: r.lat,
-    photos: r.photos,
-    videos: r.videos,
+    photos,
+    videos,
     audioUrl: r.audio_url,
     audioText: r.audio_text,
     rating: r.rating === null ? null : Number(r.rating),
-    sections: r.sections,
+    sections,
     modelUrl: r.model_url,
     published: r.published,
     sortWeight: r.sort_weight,
