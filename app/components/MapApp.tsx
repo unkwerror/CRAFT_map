@@ -154,7 +154,7 @@ export default function MapApp({ categories }: Props) {
 
       <header className={`pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId ? 'md:pr-[460px]' : ''}`}>
         <div className="mx-auto flex max-w-[1480px] items-start gap-3">
-          <div className={`brand-panel panel pointer-events-auto h-14 w-[252px] shrink-0 items-center gap-3 rounded-2xl px-3.5 ${selectedId ? 'hidden xl:flex' : 'hidden md:flex'}`}>
+          <div className={`brand-panel panel pointer-events-auto h-14 w-[252px] shrink-0 items-center gap-3 rounded-2xl px-3.5 ${selectedId ? 'hidden' : 'hidden md:flex'}`}>
             <div className="brand-panel__crest">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/gerb-tyumen.svg" alt="" className="h-8 w-auto" />
@@ -165,15 +165,17 @@ export default function MapApp({ categories }: Props) {
             </div>
           </div>
 
-          <div className="pointer-events-auto min-w-0 flex-1 md:max-w-[620px]">
-            <SearchBar
-              objects={objectsFC}
-              categories={categories}
-              districts={districtOptions}
-              onPickObject={pickObject}
-              onPickCategory={pickCategory}
-              onPickDistrict={selectDistrict}
-            />
+          <div className="pointer-events-auto min-w-0 flex-1 md:max-w-[820px]">
+            <div className="md:max-w-[620px]">
+              <SearchBar
+                objects={objectsFC}
+                categories={categories}
+                districts={districtOptions}
+                onPickObject={pickObject}
+                onPickCategory={pickCategory}
+                onPickDistrict={selectDistrict}
+              />
+            </div>
             <CategoryChips
               categories={categories}
               activeCats={activeCats}
