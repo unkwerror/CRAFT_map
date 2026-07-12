@@ -31,6 +31,7 @@ jobs:
             docker compose build app
             docker compose up -d --remove-orphans
             docker compose exec -T nginx nginx -t
+            docker compose exec -T nginx nginx -s reload
             curl --fail --retry 12 --retry-delay 5 --max-time 10 https://xn--80ayho4cq.site/api/categories
             docker image prune -f
           '
