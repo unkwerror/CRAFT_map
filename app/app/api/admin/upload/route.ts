@@ -15,6 +15,11 @@ export async function POST(req: NextRequest) {
   const guard = await requireRole('editor')
   if (guard.error) return guard.error
 
+  const contentLength = Number(req.headers.get('content-length'))
+  if (Number.isFinite(contentLength) && contentLength > MAX_SIZE + 1024 * 1024) {
+    return NextResponse.json({ error: 'Файл больше 15 МБ' }, { status: 413 })
+  }
+
   const form = await req.formData().catch(() => null)
   const file = form?.get('file')
   if (!(file instanceof File)) {

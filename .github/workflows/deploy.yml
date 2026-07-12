@@ -16,18 +16,21 @@ jobs:
       - name: Деплой на прод (память.site)
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 159.194.201.108 >> ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
           ssh root@159.194.201.108 '
             set -euo pipefail
             cd /opt/CRAFT_map
             git fetch origin main
             git reset --hard origin/main
             docker compose build app
-            docker compose up -d app
-            docker compose exec -T nginx nginx -s reload || true
+            docker compose up -d --remove-orphans
+            docker compose exec -T nginx nginx -t
+            curl --fail --retry 12 --retry-delay 5 --max-time 10 https://xn--80ayho4cq.site/api/categories
             docker image prune -f
           '

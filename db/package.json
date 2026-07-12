@@ -5,6 +5,7 @@
   "scripts": {
     "migrate": "node migrate.mjs",
     "seed": "node seed.mjs",
+    "cleanup-uploads": "node cleanup-uploads.mjs",
     "import": "node import/import.mjs"
   },
   "dependencies": {

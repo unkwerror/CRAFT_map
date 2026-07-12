@@ -35,7 +35,6 @@ export default function AudioUpload({ audioUrl, onChange }: Props) {
     <div>
       {audioUrl ? (
         <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2">
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <audio src={audioUrl} controls preload="metadata" className="h-9 min-w-0 flex-1" />
           <button type="button" onClick={() => onChange(null)} title="Убрать"
             className="shrink-0 rounded px-1.5 py-1 text-red-600 hover:bg-red-50">✕</button>

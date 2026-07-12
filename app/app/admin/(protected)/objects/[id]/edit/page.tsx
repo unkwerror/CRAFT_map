@@ -28,10 +28,12 @@ export default async function EditObjectPage({ params }: { params: Promise<{ id:
     sections: DescriptionSection[]
     model_url: string | null
     published: boolean
+    sort_weight: number
   }[]>`
     select o.id, o.title, o.description, o.category_id, o.address,
            st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.videos,
-           o.audio_url, o.audio_text, o.rating, o.sections, o.model_url, o.published
+           o.audio_url, o.audio_text, o.rating, o.sections, o.model_url, o.published,
+           o.sort_weight
     from objects o where o.id = ${id} limit 1`
 
   const r = rows[0]
@@ -56,6 +58,7 @@ export default async function EditObjectPage({ params }: { params: Promise<{ id:
     sections: r.sections,
     modelUrl: r.model_url,
     published: r.published,
+    sortWeight: r.sort_weight,
     events: [],
   }
 

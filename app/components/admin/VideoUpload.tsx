@@ -74,7 +74,6 @@ export default function VideoUpload({ videos, onChange }: Props) {
         <ul className="mt-3 space-y-2">
           {videos.map((v, i) => (
             <li key={v.src} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2">
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <video src={v.src} preload="metadata" className="h-14 w-20 shrink-0 rounded-md bg-black object-cover" />
               <input
                 value={v.alt ?? ''}

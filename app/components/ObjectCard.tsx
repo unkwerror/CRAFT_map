@@ -291,7 +291,6 @@ export default function ObjectCard({ id, onClose }: Props) {
                   )}
                 </div>
                 {audioOpen && (
-                  // eslint-disable-next-line jsx-a11y/media-has-caption
                   <audio src={data.audioUrl} controls autoPlay className="mt-3 h-9 w-full" />
                 )}
                 {textOpen && data.audioText && (

@@ -20,6 +20,18 @@ docker compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
 docker compose exec -T app tar cf - -C /data uploads \
   | gzip > "$BACKUP_DIR/uploads-$STAMP.tar.gz"
 
+gzip -t "$BACKUP_DIR/db-$STAMP.sql.gz"
+gzip -t "$BACKUP_DIR/uploads-$STAMP.tar.gz"
+
+# После создания и проверки архивов удаляем неиспользуемые файлы старше суток.
+docker compose exec -T app node /srv/db/cleanup-uploads.mjs
+
+# Необязательная внешняя копия: BACKUP_REMOTE=user@host:/safe/path
+if [[ -n "${BACKUP_REMOTE:-}" ]]; then
+  rsync -a --chmod=F600 "$BACKUP_DIR/db-$STAMP.sql.gz" \
+    "$BACKUP_DIR/uploads-$STAMP.tar.gz" "$BACKUP_REMOTE/"
+fi
+
 find "$BACKUP_DIR" -maxdepth 1 -type f -mtime +"$KEEP_DAYS" -delete
 
 echo "backup ok: $STAMP ($(du -sh "$BACKUP_DIR" | cut -f1) total)"

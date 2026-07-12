@@ -31,6 +31,7 @@ export default function ObjectForm({ categories, initial }: Props) {
   const [sections, setSections] = useState<DescriptionSection[]>(initial?.sections ?? [])
   const [modelUrl, setModelUrl] = useState<string | null>(initial?.modelUrl ?? null)
   const [published, setPublished] = useState(initial?.published ?? true)
+  const [sortWeight, setSortWeight] = useState(initial?.sortWeight ?? 0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -63,7 +64,7 @@ export default function ObjectForm({ categories, initial }: Props) {
       sections: filledSections,
       modelUrl,
       published,
-      sortWeight: 0,
+      sortWeight,
     }
     const res = await fetch(
       initial ? `/api/admin/objects/${initial.id}` : '/api/admin/objects',
@@ -154,6 +155,22 @@ export default function ObjectForm({ categories, initial }: Props) {
             className="h-4 w-4"
           />
           Опубликован (виден на карте)
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Приоритет на карте</span>
+          <input
+            type="number"
+            min={-1000}
+            max={1000}
+            step={1}
+            value={sortWeight}
+            onChange={(e) => setSortWeight(Number(e.target.value))}
+            className={inputCls}
+          />
+          <span className="mt-1 block text-xs text-slate-500">
+            Объекты с большим значением показываются раньше
+          </span>
         </label>
 
         <div>

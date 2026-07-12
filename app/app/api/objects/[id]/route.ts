@@ -24,6 +24,7 @@ interface Row {
   sections: DescriptionSection[]
   model_url: string | null
   published: boolean
+  sort_weight: number
 }
 
 interface EventRow {
@@ -48,7 +49,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
            d.name as district_name, o.address,
            st_x(o.geom) as lng, st_y(o.geom) as lat,
            o.photos, o.videos, o.audio_url, o.audio_text, o.rating, o.sections,
-           o.model_url, o.published
+           o.model_url, o.published, o.sort_weight
     from objects o
     join categories c on c.id = o.category_id
     left join districts d on d.id = o.district_id
@@ -98,6 +99,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     sections: r.sections,
     modelUrl: r.model_url,
     published: r.published,
+    sortWeight: r.sort_weight,
     events,
   }
   return NextResponse.json(dto)

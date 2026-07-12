@@ -79,6 +79,8 @@ export interface ObjectFull {
   sections: DescriptionSection[]
   modelUrl: string | null
   published: boolean
+  /** приоритет показа на карте */
+  sortWeight: number
   /** текущие и ближайшие мероприятия у объекта */
   events: EventDto[]
 }

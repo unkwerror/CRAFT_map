@@ -37,12 +37,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     sections: DescriptionSection[]
     model_url: string | null
     published: boolean
+    sort_weight: number
   }[]>`
     select o.id, o.title, o.description, o.category_id,
            c.title as category_title, c.color as category_color,
            d.name as district_name, o.address,
            st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.videos,
-           o.audio_url, o.audio_text, o.rating, o.sections, o.model_url, o.published
+           o.audio_url, o.audio_text, o.rating, o.sections, o.model_url, o.published,
+           o.sort_weight
     from objects o
     join categories c on c.id = o.category_id
     left join districts d on d.id = o.district_id
@@ -71,6 +73,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     sections: r.sections,
     modelUrl: r.model_url,
     published: r.published,
+    sortWeight: r.sort_weight,
     events: [],
   }
   return NextResponse.json(dto)

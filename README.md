@@ -68,21 +68,30 @@ docker compose exec app node /srv/db/import/import.mjs districts /srv/db/import/
 
 ### Бэкапы
 
-`db/backup.sh` — pg_dump + архив загрузок, хранение 14 дней. Крон на хосте:
+`db/backup.sh` — pg_dump + архив загрузок, проверка архивов, очистка неиспользуемых
+медиа старше суток и хранение 14 дней. Крон на хосте:
 
 ```
 30 3 * * * cd /opt/CRAFT_map && ./db/backup.sh >> /var/log/craft-backup.log 2>&1
 ```
 
+Для второй копии на отдельной машине задайте в `.env`, например:
+`BACKUP_REMOTE=backup@example.ru:/srv/backups/craft-map`. SSH-ключ пользователя,
+запускающего cron, должен иметь доступ к этому адресу. Восстановление из архивов
+следует проверять регулярно на тестовом окружении.
+
 ### CI/CD
 
 Деплой автоматический: push в `main` на GitHub → workflow
 `.github/workflows/deploy.yml` заходит по SSH на прод, делает
-`git reset --hard origin/main`, пересобирает и перезапускает контейнер `app`.
+`git reset --hard origin/main`, применяет актуальный Compose, ждёт health-check и
+проверяет публичный API.
 Запустить вручную можно через вкладку Actions (workflow_dispatch).
 
-Требуется секрет репозитория `DEPLOY_SSH_KEY` (приватный ed25519-ключ,
-парный публичный лежит в `/root/.ssh/authorized_keys` на сервере).
+Требуются секреты репозитория `DEPLOY_SSH_KEY` (приватный ed25519-ключ,
+парный публичный лежит в `/root/.ssh/authorized_keys` на сервере) и
+`DEPLOY_KNOWN_HOSTS` с заранее проверенной строкой host key сервера. Не формируйте
+этот секрет через `ssh-keyscan` внутри CI: сверяйте отпечаток по доверенному каналу.
 Прямой rsync-деплой больше не нужен — код на сервере обновляется только
 через git, локальные правки в `/opt/CRAFT_map` будут затёрты.
 
@@ -91,7 +100,7 @@ docker compose exec app node /srv/db/import/import.mjs districts /srv/db/import/
 1. ✅ Каркас: compose, миграции, seed категорий и админа
 2. ✅ Импорт GeoJSON (округа + объекты, идемпотентный)
 3. ✅ Карта MVP: MapLibre, маркеры из API, fallback-подложка
-4. ✅ Интерактив: фильтры, кластеры, карточки, статистика, mobile
+4. ✅ Интерактив: поиск, категории, кластеры, карточки, mobile
 5. ✅ Стиль подложки под палитру КРАФТ (`app/public/map-style.json`, правится в Maputnik);
       сборку `tyumen.pmtiles` выполнить по `tiles/README.md`
 6. ✅ Админка: Auth.js, CRUD, фото (sharp), мини-карта координат, экспорт CSV/GeoJSON

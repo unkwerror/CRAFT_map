@@ -1,12 +1,22 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { auth, signOut } from '@/lib/auth'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { users } from '@/lib/schema'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
   if (!session?.user) redirect('/admin/login')
 
-  const isAdmin = session.user.role === 'admin'
+  const [currentUser] = await db
+    .select({ email: users.email, role: users.role })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1)
+  if (!currentUser) redirect('/admin/login')
+
+  const isAdmin = currentUser.role === 'admin'
 
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900">
@@ -36,7 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             <span className="text-slate-500">
-              {session.user.email} · {isAdmin ? 'админ' : 'редактор'}
+              {currentUser.email} · {isAdmin ? 'админ' : 'редактор'}
             </span>
             <form
               action={async () => {

@@ -108,7 +108,6 @@ export default async function ObjectPage({ params }: Params) {
       {obj.videos.length > 0 && (
         <div className="mt-5 space-y-3">
           {obj.videos.map((v) => (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
             <video
               key={v.src}
               src={v.src}
@@ -125,7 +124,6 @@ export default async function ObjectPage({ params }: Params) {
       {obj.audio_url && (
         <div className="mt-6">
           <h2 className="eyebrow mb-2">Аудиогид</h2>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <audio src={obj.audio_url} controls preload="metadata" className="h-9 w-full" />
           {obj.audio_text && (
             <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/85">

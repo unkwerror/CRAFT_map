@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pg } from '@/lib/db'
 import { requireRole } from '@/lib/guard'
 import type { Photo } from '@/lib/types'
+import { csvCell } from '@/lib/csv'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,11 +18,6 @@ interface Row {
   photos: Photo[]
   published: boolean
   sort_weight: number
-}
-
-function csvCell(v: string | number | boolean | null): string {
-  const s = v === null ? '' : String(v)
-  return /[";\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
 }
 
 /** Экспорт всех объектов: ?format=csv | geojson */
