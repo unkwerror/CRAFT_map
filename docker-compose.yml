@@ -21,6 +21,8 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile
+      args:
+        NEXT_PUBLIC_DONATION_URL: ${NEXT_PUBLIC_DONATION_URL:-}
     restart: unless-stopped
     mem_limit: 1g
     cpus: 2.0

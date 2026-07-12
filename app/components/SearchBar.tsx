@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CategoryDto, ObjectFeatureProps } from '@/lib/types'
 
 interface DistrictOption {
@@ -59,6 +59,7 @@ export default function SearchBar({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
+  const listboxId = useId()
 
   const suggestions = useMemo<Suggestion[]>(() => {
     const q = query.trim()
@@ -117,6 +118,11 @@ export default function SearchBar({
 
   useEffect(() => setActive(0), [query])
 
+  useEffect(() => {
+    if (!open) return
+    document.getElementById(`${listboxId}-${active}`)?.scrollIntoView({ block: 'nearest' })
+  }, [active, open, listboxId])
+
   // клик мимо — закрыть подсказки
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -153,8 +159,8 @@ export default function SearchBar({
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="panel flex h-12 items-center gap-3 rounded-lg px-4 transition-shadow focus-within:border-[#d5a54f] focus-within:shadow-[0_3px_12px_rgba(4,14,24,.38)]">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-[var(--ink-subtle)]">
+      <div className="search-surface panel flex h-14 items-center gap-3 rounded-2xl px-4 transition-all">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-[var(--ink-subtle)]">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
           <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
@@ -169,7 +175,13 @@ export default function SearchBar({
           onKeyDown={onKeyDown}
           placeholder="Памятник, категория или округ…"
           aria-label="Поиск по карте"
-          className="w-full bg-transparent text-[15px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-subtle)] [&::-webkit-search-cancel-button]:hidden"
+          role="combobox"
+          aria-expanded={open && (suggestions.length > 0 || showEmpty)}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && suggestions[active] ? `${listboxId}-${active}` : undefined}
+          autoComplete="off"
+          className="w-full bg-transparent text-[15px] font-medium text-[var(--ink)] outline-none placeholder:font-normal placeholder:text-[var(--ink-subtle)] [&::-webkit-search-cancel-button]:hidden"
         />
         {query && (
           <button
@@ -179,7 +191,7 @@ export default function SearchBar({
               setOpen(false)
             }}
             aria-label="Очистить поиск"
-            className="shrink-0 text-[var(--ink-subtle)] transition-colors hover:text-[var(--ink)]"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--ink-subtle)] transition-colors hover:bg-white/[0.06] hover:text-[var(--ink)]"
           >
             ✕
           </button>
@@ -187,23 +199,30 @@ export default function SearchBar({
       </div>
 
       {open && (suggestions.length > 0 || showEmpty) && (
-        <div className="panel panel-scroll absolute inset-x-0 top-full z-30 mt-2 max-h-[50vh] overflow-y-auto rounded-lg py-1.5">
+        <div id={listboxId} role="listbox" className="search-results panel panel-scroll absolute inset-x-0 top-full z-30 mt-2 max-h-[min(420px,56vh)] overflow-y-auto rounded-2xl p-1.5">
           {showEmpty && (
-            <p className="px-4 py-2.5 text-sm text-[var(--ink-muted)]">Ничего не найдено</p>
+            <p role="status" className="px-4 py-2.5 text-sm text-[var(--ink-muted)]">Ничего не найдено</p>
           )}
           {suggestions.map((s, i) => (
             <button
               key={s.key}
+              id={`${listboxId}-${i}`}
+              role="option"
+              aria-selected={i === active}
               type="button"
               onClick={() => pick(s)}
               onMouseEnter={() => setActive(i)}
-              className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                i === active ? 'bg-white/[0.07]' : ''
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                i === active ? 'bg-white/[0.075]' : 'hover:bg-white/[0.04]'
               }`}
             >
-              <span aria-hidden className="w-4 shrink-0 text-center text-sm">
-                {s.kind === 'object' && '📍'}
-                {s.kind === 'district' && '🗺️'}
+              <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.045] text-[var(--ink-muted)]">
+                {s.kind === 'object' && (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" stroke="currentColor" strokeWidth="1.8"/><circle cx="12" cy="10" r="2" fill="currentColor"/></svg>
+                )}
+                {s.kind === 'district' && (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="m3 6 5-3 8 3 5-3v15l-5 3-8-3-5 3V6Z" stroke="currentColor" strokeWidth="1.6"/><path d="M8 3v15m8-12v15" stroke="currentColor" strokeWidth="1.6"/></svg>
+                )}
                 {s.kind === 'category' && (
                   <span
                     className="inline-block h-2.5 w-2.5 rounded-full"
@@ -212,8 +231,8 @@ export default function SearchBar({
                 )}
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-sm text-[var(--ink)]">{s.label}</span>
-                <span className="block text-xs text-[var(--ink-subtle)]">{s.sub}</span>
+                <span className="block truncate text-sm font-medium text-[var(--ink)]">{s.label}</span>
+                <span className="mt-0.5 block text-[11px] text-[var(--ink-subtle)]">{s.sub}</span>
               </span>
             </button>
           ))}

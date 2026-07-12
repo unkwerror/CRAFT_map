@@ -26,6 +26,8 @@ export interface MapViewProps {
   /** fitBounds на округ; tick — чтобы повторный клик срабатывал */
   fitDistrict: { districtId: number; tick: number } | null
   onSelect: (id: string | null) => void
+  onReady?: () => void
+  onError?: () => void
 }
 
 function categoryColorExpr(categories: CategoryDto[]): ExpressionSpecification {
@@ -61,13 +63,19 @@ export default function MapView({
   selected,
   fitDistrict,
   onSelect,
+  onReady,
+  onError,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
   const [ready, setReady] = useState(false)
   const labelFontRef = useRef<string[]>(['Noto Sans Bold'])
   const onSelectRef = useRef(onSelect)
+  const onReadyRef = useRef(onReady)
+  const onErrorRef = useRef(onError)
   onSelectRef.current = onSelect
+  onReadyRef.current = onReady
+  onErrorRef.current = onError
 
   // инициализация карты
   useEffect(() => {
@@ -100,7 +108,10 @@ export default function MapView({
         }),
         'bottom-right'
       )
-      map.on('load', () => setReady(true))
+      map.on('load', () => {
+        setReady(true)
+        onReadyRef.current?.()
+      })
 
       // клик с расширенной зоной тапа (±14px ≈ 40px hit area)
       map.on('click', (e) => {
@@ -135,7 +146,7 @@ export default function MapView({
       })
 
       mapRef.current = map
-    })
+    }).catch(() => onErrorRef.current?.())
 
     return () => {
       cancelled = true
@@ -158,12 +169,14 @@ export default function MapView({
       id: 'districts-line',
       type: 'line',
       source: 'districts',
-      paint: { 'line-color': '#9bb1c2', 'line-width': 1.2, 'line-opacity': 0.52 },
+      paint: { 'line-color': '#a9bdcb', 'line-width': 1.1, 'line-opacity': 0.34 },
     })
     map.addLayer({
       id: 'districts-label',
       type: 'symbol',
       source: 'districts',
+      minzoom: 9,
+      maxzoom: 14.5,
       layout: {
         'text-field': ['get', 'name'],
         'text-font': labelFontRef.current,
@@ -175,7 +188,7 @@ export default function MapView({
         'text-color': '#b9cad6',
         'text-halo-color': '#142b3e',
         'text-halo-width': 1.2,
-        'text-opacity': 0.72,
+        'text-opacity': 0.58,
       },
     })
   }, [ready, districts])
@@ -292,6 +305,7 @@ export default function MapView({
       (f) => (f.properties as { hasEvent?: boolean } | null)?.hasEvent
     )
     if (!hasPulse || !map.getLayer('objects-event-pulse')) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     let raf = 0
     const tick = () => {
       const t = (performance.now() % 1800) / 1800
@@ -312,11 +326,12 @@ export default function MapView({
     map.setFilter('objects-selected', ['==', ['get', 'id'], selected?.id ?? ''])
     if (selected) {
       const desktop = window.innerWidth >= 768
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       map.flyTo({
         center: [selected.lng, selected.lat],
         zoom: Math.max(map.getZoom(), 13.5),
         offset: desktop ? [-230, 0] : [0, -140],
-        duration: 700,
+        duration: reducedMotion ? 0 : 700,
       })
     }
   }, [ready, selected])
@@ -329,7 +344,8 @@ export default function MapView({
       (f) => (f.properties as { id?: number } | null)?.id === fitDistrict.districtId
     )
     if (feature?.geometry) {
-      map.fitBounds(geometryBounds(feature.geometry), { padding: 60, duration: 700 })
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      map.fitBounds(geometryBounds(feature.geometry), { padding: 60, duration: reducedMotion ? 0 : 700 })
     }
   }, [ready, fitDistrict, districts])
 

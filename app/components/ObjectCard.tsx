@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { EventDto, ObjectFull } from '@/lib/types'
 import ModelViewer from './ModelViewer'
 
+const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL
+
 interface Props {
   id: string
   onClose: () => void
@@ -51,8 +53,12 @@ export default function ObjectCard({ id, onClose }: Props) {
   const [view, setView] = useState<'media' | '3d'>('media')
   const [audioOpen, setAudioOpen] = useState(false)
   const [textOpen, setTextOpen] = useState(false)
-  const [donateOpen, setDonateOpen] = useState(false)
+  const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
+  const [requestKey, setRequestKey] = useState(0)
   const touchX = useRef<number | null>(null)
+  const panelRef = useRef<HTMLElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     let cancelled = false
@@ -62,7 +68,7 @@ export default function ObjectCard({ id, onClose }: Props) {
     setView('media')
     setAudioOpen(false)
     setTextOpen(false)
-    setDonateOpen(false)
+    setShareState('idle')
     fetch(`/api/objects/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: ObjectFull) => {
@@ -74,7 +80,62 @@ export default function ObjectCard({ id, onClose }: Props) {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, requestKey])
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Tab' && panelRef.current) {
+        const focusable = Array.from(
+          panelRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], audio[controls], video[controls], [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((element) => element.offsetParent !== null)
+        const first = focusable[0]
+        const last = focusable.at(-1)
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current) && last) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current) && first) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    panelRef.current?.focus({ preventScroll: true })
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      previousFocus?.focus?.()
+    }
+  }, [])
+
+  async function shareObject() {
+    const url = `${window.location.origin}/object/${id}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: data?.title ?? 'Памятный объект Тюмени', url })
+        return
+      } catch (error) {
+        if ((error as DOMException).name === 'AbortError') return
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      const field = document.createElement('textarea')
+      field.value = url
+      field.style.position = 'fixed'
+      field.style.opacity = '0'
+      document.body.appendChild(field)
+      field.select()
+      document.execCommand('copy')
+      field.remove()
+    }
+    setShareState('copied')
+    window.setTimeout(() => setShareState('idle'), 1800)
+  }
 
   // фото и видео — в одной галерее (как в Яндекс.Картах)
   const media: MediaItem[] = [
@@ -96,23 +157,46 @@ export default function ObjectCard({ id, onClose }: Props) {
 
   return (
     <aside
-      className="panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)]
-                 shadow-[-3px_0_18px_rgba(4,14,24,0.38)]
-                 max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[82vh] max-md:rounded-t-2xl
-                 md:right-0 md:top-0 md:h-full md:w-[420px] md:border-l md:border-[var(--hairline)]"
+      ref={panelRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      className="object-sheet panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)] outline-none
+                 max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[86vh] max-md:rounded-t-[24px]
+                 md:right-0 md:top-0 md:h-full md:w-[440px] md:border-l md:border-[var(--hairline)]"
       aria-label="Карточка объекта"
     >
+      <div className="absolute left-1/2 top-2 z-10 h-1 w-9 -translate-x-1/2 rounded-full bg-white/35 md:hidden" aria-hidden />
       <button
         type="button"
         onClick={onClose}
         aria-label="Закрыть"
-        className="btn-ghost absolute right-3 top-3 z-10 h-8 w-8 text-base leading-none"
+        className="btn-ghost absolute right-3 top-3 z-10 h-11 w-11 text-base leading-none"
       >
         ✕
       </button>
 
-      {error && <p className="p-6 pt-14 text-[var(--ink-muted)]">Не удалось загрузить объект.</p>}
-      {!data && !error && <p className="p-6 pt-14 text-[var(--ink-subtle)]">Загрузка…</p>}
+      {error && (
+        <div className="p-6 pt-16">
+          <p className="text-sm text-[var(--ink-muted)]">Не удалось загрузить объект.</p>
+          <button type="button" onClick={() => setRequestKey((value) => value + 1)} className="btn-accent mt-4 min-h-11 rounded-xl px-4 text-sm">
+            Повторить
+          </button>
+        </div>
+      )}
+      {!data && !error && (
+        <div className="object-skeleton" aria-label="Загружаем карточку">
+          <div className="object-skeleton__media" />
+          <div className="space-y-3 p-6">
+            <div className="object-skeleton__line w-24" />
+            <div className="object-skeleton__line h-7 w-4/5" />
+            <div className="object-skeleton__line w-3/5" />
+            <div className="pt-3"><div className="object-skeleton__line w-full" /></div>
+            <div className="object-skeleton__line w-[92%]" />
+            <div className="object-skeleton__line w-2/3" />
+          </div>
+        </div>
+      )}
 
       {data && (
         <>
@@ -133,6 +217,16 @@ export default function ObjectCard({ id, onClose }: Props) {
               >
                 3D-модель
               </button>
+              {DONATION_URL && (
+                <a
+                  href={DONATION_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[var(--hairline-strong)] px-4 text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:border-[var(--accent)]/45 hover:text-[var(--ink)]"
+                >
+                  Поддержать реставрацию
+                </a>
+              )}
             </div>
           )}
 
@@ -171,6 +265,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                 <img
                   src={item?.src ?? ''}
                   alt={item?.alt ?? data.title}
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
               )}
@@ -180,7 +275,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                     type="button"
                     onClick={prev}
                     aria-label="Предыдущее"
-                    className="btn-ghost absolute left-2 top-1/2 h-9 w-9 -translate-y-1/2 text-lg"
+                    className="btn-ghost absolute left-2 top-1/2 h-11 w-11 -translate-y-1/2 text-lg"
                   >
                     ‹
                   </button>
@@ -188,7 +283,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                     type="button"
                     onClick={next}
                     aria-label="Следующее"
-                    className="btn-ghost absolute right-2 top-1/2 h-9 w-9 -translate-y-1/2 text-lg"
+                    className="btn-ghost absolute right-2 top-1/2 h-11 w-11 -translate-y-1/2 text-lg"
                   >
                     ›
                   </button>
@@ -209,8 +304,11 @@ export default function ObjectCard({ id, onClose }: Props) {
               )}
             </div>
           ) : (
-            <div className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--surface-2)] text-4xl opacity-40">
-              📍
+            <div className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--surface-2)] text-[var(--ink-subtle)]">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" stroke="currentColor" strokeWidth="1.3" />
+                <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
             </div>
           )}
 
@@ -255,7 +353,10 @@ export default function ObjectCard({ id, onClose }: Props) {
                 ))}
                 {upcomingEvents.map((e) => (
                   <div key={e.id} className="rounded-xl border border-[var(--hairline)] bg-white/[0.03] p-3">
-                    <p className="text-xs font-medium text-[var(--ink-muted)]">📅 {eventDates(e)}</p>
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink-muted)]">
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden><rect x="2" y="3.5" width="12" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.3"/><path d="M5 2v3m6-3v3M2 7h12" stroke="currentColor" strokeWidth="1.3"/></svg>
+                      {eventDates(e)}
+                    </p>
                     <p className="mt-1 text-sm font-medium">{e.title}</p>
                     {e.description && (
                       <p className="mt-1 whitespace-pre-line text-sm text-[var(--ink)]/80">{e.description}</p>
@@ -275,7 +376,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                     className="flex items-center gap-2 text-sm font-medium"
                     aria-expanded={audioOpen}
                   >
-                    <span className="btn-accent h-8 w-8 rounded-full text-xs" aria-hidden>
+                    <span className="btn-accent h-10 w-10 rounded-full text-xs" aria-hidden>
                       {audioOpen ? '▮▮' : '▶'}
                     </span>
                     Аудиогид
@@ -315,56 +416,29 @@ export default function ObjectCard({ id, onClose }: Props) {
               </section>
             ))}
 
-            <div className="space-y-2 pt-1">
+            <div className="grid grid-cols-[1fr_auto] gap-2 pt-1">
               <a
                 href={`https://yandex.ru/maps/?rtext=~${data.lat},${data.lng}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-accent w-full rounded-lg px-4 py-3 text-sm"
+                className="btn-accent min-h-12 w-full rounded-xl px-4 py-3 text-sm"
               >
-                Маршрут в Яндекс.Картах →
+                Построить маршрут
               </a>
               <button
                 type="button"
-                onClick={() => setDonateOpen(true)}
-                className="w-full rounded-[0.625rem] border border-[#b9822d] px-4 py-3 text-sm font-semibold text-[#f4bd5c] transition-colors hover:bg-[#f0a93b]/10"
+                onClick={() => void shareObject()}
+                className="share-button flex h-12 min-w-12 items-center justify-center rounded-xl border border-[var(--hairline-strong)] px-3 text-sm font-semibold text-[var(--ink)]"
+                aria-label="Поделиться объектом"
               >
-                ♥ Пожертвовать на реставрацию
+                {shareState === 'copied' ? (
+                  <span className="text-xs text-[var(--accent)]">Скопировано</span>
+                ) : (
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden><circle cx="18" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.7"/><circle cx="6" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.7"/><circle cx="18" cy="19" r="2.5" stroke="currentColor" strokeWidth="1.7"/><path d="m8.2 10.8 7.5-4.5m-7.5 6.9 7.5 4.5" stroke="currentColor" strokeWidth="1.7"/></svg>
+                )}
               </button>
             </div>
           </div>
-
-          {/* Модалка пожертвования (платёжная интеграция — после решения заказчика) */}
-          {donateOpen && (
-            <div
-              className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Пожертвование на реставрацию"
-              onClick={() => setDonateOpen(false)}
-            >
-              <div
-                className="panel w-full max-w-sm rounded-2xl p-5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h3 className="text-lg font-semibold">Пожертвование на реставрацию</h3>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--ink)]/85">
-                  Средства направляются на сохранение и реставрацию объекта «{data.title}».
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">
-                  Реквизиты и способ оплаты уточняются. Скоро здесь появится возможность сделать
-                  пожертвование онлайн.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setDonateOpen(false)}
-                  className="btn-accent mt-4 w-full px-4 py-2.5 text-sm"
-                >
-                  Понятно
-                </button>
-              </div>
-            </div>
-          )}
         </>
       )}
     </aside>

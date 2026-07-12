@@ -8,6 +8,8 @@ FROM node:22-alpine AS build
 WORKDIR /build
 COPY --from=deps /build/node_modules ./node_modules
 COPY app/ ./
+ARG NEXT_PUBLIC_DONATION_URL
+ENV NEXT_PUBLIC_DONATION_URL=$NEXT_PUBLIC_DONATION_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
