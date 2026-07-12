@@ -38,7 +38,7 @@ textarea {
   -webkit-tap-highlight-color: transparent;
 }
 
-:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+:where(button, a, input, select, textarea, [tabindex]:not([tabindex='-1'])):focus-visible {
   outline: 2px solid #f3b451;
   outline-offset: 3px;
 }
