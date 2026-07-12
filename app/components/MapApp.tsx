@@ -25,6 +25,7 @@ export default function MapApp({ categories }: Props) {
   )
   const [activeDistrict, setActiveDistrict] = useState<number | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('object'))
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [fitDistrict, setFitDistrict] = useState<{ districtId: number; tick: number } | null>(null)
   const [dataReady, setDataReady] = useState(false)
   const [mapReady, setMapReady] = useState(false)
@@ -98,6 +99,14 @@ export default function MapApp({ categories }: Props) {
     }
   }, [objectsFC, activeCats, activeDistrict])
 
+  useEffect(() => {
+    if (!selectedId || !filteredFC) return
+    const isStillVisible = filteredFC.features.some(
+      (feature) => (feature.properties as unknown as ObjectFeatureProps).id === selectedId
+    )
+    if (!isStillVisible) setSelectedId(null)
+  }, [selectedId, filteredFC])
+
   const selected = useMemo(() => {
     if (!selectedId || !objectsFC) return null
     const f = objectsFC.features.find(
@@ -108,22 +117,44 @@ export default function MapApp({ categories }: Props) {
     return { id: selectedId, lng: lng ?? 0, lat: lat ?? 0 }
   }, [selectedId, objectsFC])
 
-  const selectDistrict = (id: number | null) => {
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const category of categories) counts[category.id] = 0
+    for (const feature of objectsFC?.features ?? []) {
+      const props = feature.properties as unknown as ObjectFeatureProps
+      if (activeDistrict !== null && props.district !== activeDistrict) continue
+      counts[props.category] = (counts[props.category] ?? 0) + 1
+    }
+    return counts
+  }, [objectsFC, categories, activeDistrict])
+
+  const selectDistrict = useCallback((id: number | null) => {
+    setPreviewId(null)
     setActiveDistrict(id)
     if (id !== null) setFitDistrict((p) => ({ districtId: id, tick: (p?.tick ?? 0) + 1 }))
-  }
+  }, [])
 
   // выбор из поиска: категория — единственный активный фильтр
-  const pickCategory = (id: string) => {
+  const pickCategory = useCallback((id: string) => {
+    setPreviewId(null)
     setActiveCats(new Set([id]))
-  }
+  }, [])
 
-  const pickObject = (id: string) => {
-    // объект мог быть скрыт фильтрами — сбрасываем их, чтобы карточка и маркер были видны
-    setActiveCats(new Set(categories.map((c) => c.id)))
-    setActiveDistrict(null)
+  const pickObject = useCallback((id: string) => {
+    // Точечно ослабляем только конфликтующие фильтры, чтобы выбор не менял карту молча.
+    const feature = objectsFC?.features.find(
+      (item) => (item.properties as unknown as ObjectFeatureProps).id === id
+    )
+    const props = feature?.properties as unknown as ObjectFeatureProps | undefined
+    if (props && !activeCats.has(props.category)) {
+      setActiveCats((current) => new Set([...current, props.category]))
+    }
+    if (props && activeDistrict !== null && props.district !== activeDistrict) {
+      setActiveDistrict(null)
+    }
+    setPreviewId(null)
     setSelectedId(id)
-  }
+  }, [objectsFC, activeCats, activeDistrict])
 
   const activeDistrictName =
     activeDistrict === null
@@ -131,6 +162,7 @@ export default function MapApp({ categories }: Props) {
       : (districtOptions.find((d) => d.id === activeDistrict)?.name ?? null)
 
   const showAllCategories = useCallback(() => {
+    setPreviewId(null)
     setActiveCats(new Set(categories.map((category) => category.id)))
   }, [categories])
 
@@ -143,6 +175,8 @@ export default function MapApp({ categories }: Props) {
         objects={filteredFC}
         districts={districtsFC}
         selected={selected}
+        highlightedId={previewId}
+        activeDistrictId={activeDistrict}
         fitDistrict={fitDistrict}
         onSelect={setSelectedId}
         onReady={() => {
@@ -152,9 +186,9 @@ export default function MapApp({ categories }: Props) {
         onError={() => setMapIssue(true)}
       />
 
-      <header className={`pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId ? 'md:pr-[460px]' : ''}`}>
+      <header className={`map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId ? 'md:max-xl:pr-[460px]' : ''}`}>
         <div className="mx-auto flex max-w-[1480px] items-start gap-3">
-          <div className={`brand-panel panel pointer-events-auto h-14 w-[252px] shrink-0 items-center gap-3 rounded-2xl px-3.5 ${selectedId ? 'hidden' : 'hidden md:flex'}`}>
+          <div className="brand-panel panel pointer-events-auto hidden h-14 w-[252px] shrink-0 items-center gap-3 rounded-2xl px-3.5 2xl:flex">
             <div className="brand-panel__crest">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/gerb-tyumen.svg" alt="" className="h-8 w-auto" />
@@ -171,17 +205,22 @@ export default function MapApp({ categories }: Props) {
                 objects={objectsFC}
                 categories={categories}
                 districts={districtOptions}
+                loading={!dataReady}
                 onPickObject={pickObject}
                 onPickCategory={pickCategory}
                 onPickDistrict={selectDistrict}
+                onPreviewObject={setPreviewId}
               />
             </div>
             <CategoryChips
               categories={categories}
               activeCats={activeCats}
               activeDistrictName={activeDistrictName}
+              counts={categoryCounts}
+              visibleCount={filteredFC?.features.length ?? 0}
               onShowAll={showAllCategories}
-              onToggleCat={(id) =>
+              onToggleCat={(id) => {
+                setPreviewId(null)
                 setActiveCats((prev) => {
                   if (prev.size === categories.length) return new Set([id])
                   const nextSet = new Set(prev)
@@ -189,8 +228,8 @@ export default function MapApp({ categories }: Props) {
                   else nextSet.add(id)
                   return nextSet
                 })
-              }
-              onClearDistrict={() => setActiveDistrict(null)}
+              }}
+              onClearDistrict={() => selectDistrict(null)}
             />
           </div>
         </div>

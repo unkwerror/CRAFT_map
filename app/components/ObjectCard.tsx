@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { EventDto, ObjectFull } from '@/lib/types'
 import ModelViewer from './ModelViewer'
 
@@ -55,6 +56,7 @@ export default function ObjectCard({ id, onClose }: Props) {
   const [textOpen, setTextOpen] = useState(false)
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
   const [requestKey, setRequestKey] = useState(0)
+  const [mobileModal, setMobileModal] = useState(false)
   const touchX = useRef<number | null>(null)
   const panelRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
@@ -83,25 +85,17 @@ export default function ObjectCard({ id, onClose }: Props) {
   }, [id, requestKey])
 
   useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)')
+    const update = () => setMobileModal(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCloseRef.current()
-      if (event.key === 'Tab' && panelRef.current) {
-        const focusable = Array.from(
-          panelRef.current.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), a[href], audio[controls], video[controls], [tabindex]:not([tabindex="-1"])'
-          )
-        ).filter((element) => element.offsetParent !== null)
-        const first = focusable[0]
-        const last = focusable.at(-1)
-        if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current) && last) {
-          event.preventDefault()
-          last.focus()
-        } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panelRef.current) && first) {
-          event.preventDefault()
-          first.focus()
-        }
-      }
     }
     window.addEventListener('keydown', onKeyDown)
     panelRef.current?.focus({ preventScroll: true })
@@ -110,6 +104,30 @@ export default function ObjectCard({ id, onClose }: Props) {
       previousFocus?.focus?.()
     }
   }, [])
+
+  useEffect(() => {
+    if (!mobileModal) return
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !panelRef.current) return
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], audio[controls], video[controls], [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.offsetParent !== null)
+      const first = focusable[0]
+      const last = focusable.at(-1)
+      if (!first || !last) return
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', trapFocus)
+    return () => window.removeEventListener('keydown', trapFocus)
+  }, [mobileModal])
 
   async function shareObject() {
     const url = `${window.location.origin}/object/${id}`
@@ -160,7 +178,7 @@ export default function ObjectCard({ id, onClose }: Props) {
       ref={panelRef}
       tabIndex={-1}
       role="dialog"
-      aria-modal="true"
+      aria-modal={mobileModal ? true : undefined}
       className="object-sheet panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)] outline-none
                  max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[86vh] max-md:rounded-t-[24px]
                  md:right-0 md:top-0 md:h-full md:w-[440px] md:border-l md:border-[var(--hairline)]"
@@ -173,7 +191,9 @@ export default function ObjectCard({ id, onClose }: Props) {
         aria-label="Закрыть"
         className="btn-ghost absolute right-3 top-3 z-10 h-11 w-11 text-base leading-none"
       >
-        ✕
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path d="m4 4 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        </svg>
       </button>
 
       {error && (
@@ -199,7 +219,7 @@ export default function ObjectCard({ id, onClose }: Props) {
       )}
 
       {data && (
-        <>
+        <div className="flex min-h-full flex-col">
           {/* Переключатель Фото / 3D-модель */}
           {data.modelUrl && (
             <div className="absolute left-3 top-3 z-10 flex gap-0.5 rounded-lg border border-white/10 bg-black/40 p-0.5 text-xs font-medium backdrop-blur">
@@ -217,16 +237,6 @@ export default function ObjectCard({ id, onClose }: Props) {
               >
                 3D-модель
               </button>
-              {DONATION_URL && (
-                <a
-                  href={DONATION_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[var(--hairline-strong)] px-4 text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:border-[var(--accent)]/45 hover:text-[var(--ink)]"
-                >
-                  Поддержать реставрацию
-                </a>
-              )}
             </div>
           )}
 
@@ -258,15 +268,16 @@ export default function ObjectCard({ id, onClose }: Props) {
                   controls
                   playsInline
                   preload="metadata"
-                  className="h-full w-full bg-black object-contain"
+                  className="object-media h-full w-full bg-black object-contain"
                 />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
+                  key={item?.src}
                   src={item?.src ?? ''}
                   alt={item?.alt ?? data.title}
                   decoding="async"
-                  className="h-full w-full object-cover"
+                  className="object-media h-full w-full object-cover"
                 />
               )}
               {media.length > 1 && (
@@ -295,6 +306,11 @@ export default function ObjectCard({ id, onClose }: Props) {
                       />
                     ))}
                   </div>
+                  {!data.modelUrl && (
+                    <span className="absolute left-3 top-3 rounded-lg border border-white/10 bg-black/45 px-2 py-1 text-[11px] font-medium text-white/90 backdrop-blur">
+                      {mediaIdx + 1} / {media.length}
+                    </span>
+                  )}
                 </>
               )}
               {item?.type !== 'video' && media.some((m) => m.type === 'video') && (
@@ -312,8 +328,11 @@ export default function ObjectCard({ id, onClose }: Props) {
             </div>
           )}
 
-          <div className="space-y-4 p-6">
-            <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink-muted)]">
+          <div className="object-content flex flex-1 flex-col gap-4 p-6">
+            <div
+              className="object-category-badge flex w-fit items-center gap-2 rounded-full px-2.5 py-1.5 text-xs font-semibold"
+              style={{ '--category-color': data.categoryColor } as CSSProperties}
+            >
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ background: data.categoryColor }}
@@ -402,6 +421,18 @@ export default function ObjectCard({ id, onClose }: Props) {
               </div>
             )}
 
+            {DONATION_URL && (
+              <a
+                href={DONATION_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="restoration-link flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--hairline-strong)] px-4 text-sm font-semibold text-[var(--ink-muted)]"
+              >
+                <span aria-hidden>♡</span>
+                Поддержать реставрацию
+              </a>
+            )}
+
             {data.description && (
               <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/85">
                 {data.description}
@@ -416,14 +447,14 @@ export default function ObjectCard({ id, onClose }: Props) {
               </section>
             ))}
 
-            <div className="grid grid-cols-[1fr_auto] gap-2 pt-1">
+            <div className="object-actions sticky bottom-0 z-[1] -mx-6 -mb-6 mt-auto grid grid-cols-[1fr_auto] gap-2 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5">
               <a
                 href={`https://yandex.ru/maps/?rtext=~${data.lat},${data.lng}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-accent min-h-12 w-full rounded-xl px-4 py-3 text-sm"
               >
-                Построить маршрут
+                Маршрут в Яндекс Картах
               </a>
               <button
                 type="button"
@@ -439,7 +470,7 @@ export default function ObjectCard({ id, onClose }: Props) {
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </aside>
   )

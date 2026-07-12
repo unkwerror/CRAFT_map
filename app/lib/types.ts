@@ -53,6 +53,8 @@ export interface ObjectFeatureProps {
   title: string
   category: string
   district: number | null
+  /** адрес нужен лёгкому клиентскому поиску и различению одноимённых объектов */
+  address: string | null
   thumb: string
   /** у объекта есть мероприятие на сегодняшнюю дату — маркер пульсирует */
   hasEvent: boolean

@@ -23,6 +23,9 @@ export interface MapViewProps {
   objects: GeoJSON.FeatureCollection | null
   districts: GeoJSON.FeatureCollection | null
   selected: { id: string; lng: number; lat: number } | null
+  /** временная подсветка маркера при наведении на результат поиска */
+  highlightedId: string | null
+  activeDistrictId: number | null
   /** fitBounds на округ; tick — чтобы повторный клик срабатывал */
   fitDistrict: { districtId: number; tick: number } | null
   onSelect: (id: string | null) => void
@@ -61,6 +64,8 @@ export default function MapView({
   objects,
   districts,
   selected,
+  highlightedId,
+  activeDistrictId,
   fitDistrict,
   onSelect,
   onReady,
@@ -69,6 +74,9 @@ export default function MapView({
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
   const [ready, setReady] = useState(false)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [hoveredClusterId, setHoveredClusterId] = useState<number | null>(null)
+  const [perspective, setPerspective] = useState(false)
   const labelFontRef = useRef<string[]>(['Noto Sans Bold'])
   const onSelectRef = useRef(onSelect)
   const onReadyRef = useRef(onReady)
@@ -95,7 +103,7 @@ export default function MapView({
         maxZoom: 19,
         attributionControl: { compact: true },
       })
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+      map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'bottom-right')
       // «Моё местоположение»: кнопка + пульсирующая точка юзера и круг точности.
       // Требует HTTPS (на проде есть). Трекинг слетает в «пассивный» режим при ручном
       // перемещении карты — повторный клик снова центрирует.
@@ -109,6 +117,42 @@ export default function MapView({
         'bottom-right'
       )
       map.on('load', () => {
+        // В перспективном режиме локальная векторная подложка получает объёмные здания.
+        // На растровом fallback слой просто не создаётся.
+        if (map.getSource('openmaptiles') && !map.getLayer('buildings-3d')) {
+          const firstLabel = map.getStyle().layers.find((layer) => layer.type === 'symbol')?.id
+          map.addLayer(
+            {
+              id: 'buildings-3d',
+              type: 'fill-extrusion',
+              source: 'openmaptiles',
+              'source-layer': 'building',
+              minzoom: 14.2,
+              layout: { visibility: 'none' },
+              paint: {
+                'fill-extrusion-color': '#2b4d63',
+                'fill-extrusion-height': [
+                  'case',
+                  ['!=', ['get', 'render_height'], null],
+                  ['to-number', ['get', 'render_height'], 8],
+                  ['!=', ['get', 'height'], null],
+                  ['to-number', ['get', 'height'], 8],
+                  8,
+                ],
+                'fill-extrusion-base': [
+                  'case',
+                  ['!=', ['get', 'render_min_height'], null],
+                  ['to-number', ['get', 'render_min_height'], 0],
+                  ['!=', ['get', 'min_height'], null],
+                  ['to-number', ['get', 'min_height'], 0],
+                  0,
+                ],
+                'fill-extrusion-opacity': 0.78,
+              },
+            },
+            firstLabel
+          )
+        }
         setReady(true)
         onReadyRef.current?.()
       })
@@ -143,6 +187,19 @@ export default function MapView({
         if (!layers.length) return
         const features = map.queryRenderedFeatures(e.point, { layers })
         map.getCanvas().style.cursor = features.length ? 'pointer' : ''
+        const feature = features[0]
+        const nextObjectId = feature?.properties?.id ? String(feature.properties.id) : null
+        const nextClusterId = feature?.properties?.cluster_id !== undefined
+          ? Number(feature.properties.cluster_id)
+          : null
+        setHoveredId((current) => (current === nextObjectId ? current : nextObjectId))
+        setHoveredClusterId((current) => (current === nextClusterId ? current : nextClusterId))
+      })
+
+      map.getCanvas().addEventListener('mouseleave', () => {
+        map.getCanvas().style.cursor = ''
+        setHoveredId(null)
+        setHoveredClusterId(null)
       })
 
       mapRef.current = map
@@ -166,10 +223,34 @@ export default function MapView({
     }
     map.addSource('districts', { type: 'geojson', data: districts })
     map.addLayer({
+      id: 'districts-fill',
+      type: 'fill',
+      source: 'districts',
+      paint: { 'fill-color': '#7ea5bd', 'fill-opacity': 0.025 },
+    })
+    map.addLayer({
+      id: 'districts-active',
+      type: 'fill',
+      source: 'districts',
+      filter: ['==', ['get', 'id'], -1],
+      paint: { 'fill-color': '#efad45', 'fill-opacity': 0.11 },
+    })
+    map.addLayer({
       id: 'districts-line',
       type: 'line',
       source: 'districts',
       paint: { 'line-color': '#a9bdcb', 'line-width': 1.1, 'line-opacity': 0.34 },
+    })
+    map.addLayer({
+      id: 'districts-active-line',
+      type: 'line',
+      source: 'districts',
+      filter: ['==', ['get', 'id'], -1],
+      paint: {
+        'line-color': '#f4bb62',
+        'line-width': 2.2,
+        'line-opacity': 0.88,
+      },
     })
     map.addLayer({
       id: 'districts-label',
@@ -193,6 +274,18 @@ export default function MapView({
     })
   }, [ready, districts])
 
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const filter: maplibregl.FilterSpecification = [
+      '==',
+      ['get', 'id'],
+      activeDistrictId ?? -1,
+    ]
+    if (map.getLayer('districts-active')) map.setFilter('districts-active', filter)
+    if (map.getLayer('districts-active-line')) map.setFilter('districts-active-line', filter)
+  }, [ready, districts, activeDistrictId])
+
   // объекты: кластеры + цветные маркеры категорий
   useEffect(() => {
     const map = mapRef.current
@@ -208,7 +301,7 @@ export default function MapView({
       data,
       cluster: true,
       clusterRadius: 48,
-      clusterMaxZoom: 15,
+      clusterMaxZoom: 14,
     })
     const color = categoryColorExpr(categories)
 
@@ -233,7 +326,11 @@ export default function MapView({
       type: 'circle',
       source: 'objects',
       filter: ['!', ['has', 'point_count']],
-      paint: { 'circle-color': color, 'circle-radius': 13, 'circle-opacity': 0.28 },
+      paint: {
+        'circle-color': color,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 11, 12, 13, 16, 16],
+        'circle-opacity': 0.28,
+      },
     })
     map.addLayer({
       id: 'objects-selected',
@@ -248,15 +345,71 @@ export default function MapView({
       },
     })
     map.addLayer({
+      id: 'objects-hover',
+      type: 'circle',
+      source: 'objects',
+      filter: ['==', ['get', 'id'], ''],
+      paint: {
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 12, 12, 15, 16, 19],
+        'circle-stroke-color': 'rgba(255,255,255,0.92)',
+        'circle-stroke-width': 2,
+        'circle-stroke-opacity': 0.9,
+      },
+    })
+    map.addLayer({
       id: 'objects-core',
       type: 'circle',
       source: 'objects',
       filter: ['!', ['has', 'point_count']],
       paint: {
         'circle-color': color,
-        'circle-radius': 6.5,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5.5, 12, 6.5, 16, 8.5],
         'circle-stroke-color': 'rgba(255,255,255,0.9)',
         'circle-stroke-width': 1.4,
+      },
+    })
+    map.addLayer({
+      id: 'objects-label',
+      type: 'symbol',
+      source: 'objects',
+      minzoom: 14.2,
+      filter: ['!', ['has', 'point_count']],
+      layout: {
+        'text-field': ['get', 'title'],
+        'text-font': labelFontRef.current,
+        'text-size': ['interpolate', ['linear'], ['zoom'], 14.2, 10.5, 17, 12.5],
+        'text-anchor': 'top',
+        'text-offset': [0, 1.35],
+        'text-max-width': 16,
+        'text-optional': true,
+      },
+      paint: {
+        'text-color': '#e5eef4',
+        'text-halo-color': '#102536',
+        'text-halo-width': 1.4,
+        'text-halo-blur': 0.5,
+      },
+    })
+    map.addLayer({
+      id: 'objects-focus-label',
+      type: 'symbol',
+      source: 'objects',
+      filter: ['==', ['get', 'id'], ''],
+      layout: {
+        'text-field': ['get', 'title'],
+        'text-font': labelFontRef.current,
+        'text-size': 12,
+        'text-anchor': 'top',
+        'text-offset': [0, 1.45],
+        'text-max-width': 18,
+        'text-allow-overlap': true,
+      },
+      paint: {
+        'text-color': '#ffffff',
+        'text-halo-color': '#0d202f',
+        'text-halo-width': 2,
+        'text-halo-blur': 0.6,
       },
     })
     // кластеры: радиус растёт с количеством точек
@@ -284,6 +437,19 @@ export default function MapView({
       },
     })
     map.addLayer({
+      id: 'clusters-hover',
+      type: 'circle',
+      source: 'objects',
+      filter: ['==', ['get', 'cluster_id'], -1],
+      paint: {
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-radius': ['step', ['get', 'point_count'], 17, 10, 21, 30, 26],
+        'circle-stroke-color': '#d8e7f0',
+        'circle-stroke-width': 2,
+        'circle-stroke-opacity': 0.82,
+      },
+    })
+    map.addLayer({
       id: 'clusters-count',
       type: 'symbol',
       source: 'objects',
@@ -296,6 +462,21 @@ export default function MapView({
       paint: { 'text-color': '#eef4f8' },
     })
   }, [ready, objects, categories])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const focusId = highlightedId ?? hoveredId ?? selected?.id ?? ''
+    if (map.getLayer('objects-hover')) {
+      map.setFilter('objects-hover', ['==', ['get', 'id'], focusId])
+    }
+    if (map.getLayer('objects-focus-label')) {
+      map.setFilter('objects-focus-label', ['==', ['get', 'id'], focusId])
+    }
+    if (map.getLayer('clusters-hover')) {
+      map.setFilter('clusters-hover', ['==', ['get', 'cluster_id'], hoveredClusterId ?? -1])
+    }
+  }, [ready, objects, selected, highlightedId, hoveredId, hoveredClusterId])
 
   // анимация пульса: кольцо расширяется и гаснет (объекты с мероприятием сегодня)
   useEffect(() => {
@@ -329,7 +510,7 @@ export default function MapView({
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       map.flyTo({
         center: [selected.lng, selected.lat],
-        zoom: Math.max(map.getZoom(), 13.5),
+        zoom: Math.max(map.getZoom(), 15.1),
         offset: desktop ? [-230, 0] : [0, -140],
         duration: reducedMotion ? 0 : 700,
       })
@@ -349,12 +530,42 @@ export default function MapView({
     }
   }, [ready, fitDistrict, districts])
 
+  const togglePerspective = () => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const next = !perspective
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    setPerspective(next)
+    if (map.getLayer('buildings-3d')) {
+      map.setLayoutProperty('buildings-3d', 'visibility', next ? 'visible' : 'none')
+    }
+    map.easeTo({
+      pitch: next ? 48 : 0,
+      bearing: next ? -12 : 0,
+      zoom: next ? Math.max(map.getZoom(), 14.4) : map.getZoom(),
+      duration: reducedMotion ? 0 : 720,
+    })
+  }
+
   // Обёртка держит позиционирование: MapLibre вешает на контейнер класс
   // .maplibregl-map { position: relative }, который в прод-сборке перебивает
   // tailwind-класс absolute (порядок CSS-бандлов) и схлопывает высоту в 0.
   return (
     <div className="absolute inset-0">
       <div ref={containerRef} className="h-full w-full" />
+      <button
+        type="button"
+        onClick={togglePerspective}
+        aria-label={perspective ? 'Вернуть плоский вид карты' : 'Включить перспективный вид карты'}
+        aria-pressed={perspective}
+        className={`map-perspective-toggle ${perspective ? 'map-perspective-toggle--active' : ''}`}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path d="m3.5 8 8.5-4 8.5 4-8.5 4-8.5-4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+          <path d="m3.5 12 8.5 4 8.5-4M3.5 16l8.5 4 8.5-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>{perspective ? '2D' : '3D'}</span>
+      </button>
     </div>
   )
 }

@@ -8,6 +8,7 @@ interface Row {
   title: string
   category: string
   district: number | null
+  address: string | null
   thumb: string
   lng: number
   lat: number
@@ -19,6 +20,7 @@ export async function GET() {
   // «сегодня» — по тюменскому времени, независимо от TZ сервера
   const rows = await pg<Row[]>`
     select o.id, o.title, o.category_id as category, o.district_id as district,
+           o.address,
            coalesce(o.photos -> 0 ->> 'thumb', '') as thumb,
            st_x(o.geom) as lng, st_y(o.geom) as lat,
            exists (
@@ -40,6 +42,7 @@ export async function GET() {
         title: r.title,
         category: r.category,
         district: r.district,
+        address: r.address,
         thumb: r.thumb,
         hasEvent: r.has_event,
       },
