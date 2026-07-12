@@ -38,7 +38,7 @@ export default function CategoryChips({
   const availableCount = Object.values(counts).reduce((sum, count) => sum + count, 0)
 
   return (
-    <div className="category-strip scrollbar-none -mx-1 mt-2 flex max-w-full items-center gap-1.5 overflow-x-auto px-1 pb-2" aria-label="Категории объектов">
+    <div className="category-strip scrollbar-none -mx-1 mt-2 flex w-full max-w-full items-center gap-1.5 overflow-x-auto pb-2 pl-1 pr-5" aria-label="Категории объектов">
       <button
         type="button"
         onClick={onShowAll}

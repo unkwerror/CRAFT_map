@@ -199,7 +199,7 @@ export default function MapApp({ categories }: Props) {
             </div>
           </div>
 
-          <div className="pointer-events-auto min-w-0 flex-1 md:max-w-[820px]">
+          <div className="pointer-events-auto min-w-0 flex-1">
             <div className="md:max-w-[620px]">
               <SearchBar
                 objects={objectsFC}
