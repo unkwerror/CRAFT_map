@@ -33,6 +33,9 @@ services:
       AUTH_TRUST_HOST: "true"
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # SpeechKit доступен только серверному admin API; в NEXT_PUBLIC_* ключ не попадает.
+      YANDEX_SPEECHKIT_API_KEY: ${YANDEX_SPEECHKIT_API_KEY:-}
+      YANDEX_SPEECHKIT_API_KEY_ID: ${YANDEX_SPEECHKIT_API_KEY_ID:-}
       UPLOADS_DIR: /data/uploads
       NODE_ENV: production
     volumes:

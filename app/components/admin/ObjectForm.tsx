@@ -238,14 +238,19 @@ export default function ObjectForm({ categories, initial }: Props) {
 
         <div>
           <span className="mb-1 block text-sm font-medium">Аудиогид</span>
-          <AudioUpload audioUrl={audioUrl} onChange={setAudioUrl} onUploadingChange={setAudioUploading} />
           <textarea
             rows={4}
             maxLength={20000}
             value={audioText}
             onChange={(e) => setAudioText(e.target.value)}
             placeholder="Текстовая версия аудиогида (доступность: аудио + текст)"
-            className={`${inputCls} mt-2`}
+            className={`${inputCls} mb-2`}
+          />
+          <AudioUpload
+            audioUrl={audioUrl}
+            audioText={audioText}
+            onChange={setAudioUrl}
+            onUploadingChange={setAudioUploading}
           />
         </div>
 
