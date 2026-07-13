@@ -93,7 +93,10 @@ export default function ObjectCard({ id, onClose }: Props) {
     if (!shell) return
     const backdrop = shell.querySelector('[data-object-sheet-backdrop]')
     const siblings = Array.from(shell.children).filter(
-      (element) => element !== sheet && element !== backdrop
+      (element) =>
+        element !== sheet &&
+        element !== backdrop &&
+        !(element as HTMLElement).hasAttribute('data-events-panel')
     ) as HTMLElement[]
     const previous = siblings.map((element) => ({
       element,

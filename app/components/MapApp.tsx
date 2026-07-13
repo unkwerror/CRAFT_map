@@ -5,8 +5,11 @@ import { useSearchParams } from 'next/navigation'
 import MapView from './MapView'
 import SearchBar from './SearchBar'
 import CategoryChips from './CategoryChips'
+import EventsPanel from './EventsPanel'
+import MapModeNav from './MapModeNav'
 import ObjectCard from './ObjectCard'
 import MapPreloader from './MapPreloader'
+import type { MapViewMode } from './MapModeNav'
 import type { CategoryDto, ObjectFeatureProps } from '@/lib/types'
 
 interface Props {
@@ -14,6 +17,21 @@ interface Props {
 }
 
 type FC = GeoJSON.FeatureCollection
+
+const EVENT_OBJECT_HISTORY_KEY = 'craftEventObject'
+
+function historyState(eventObject: boolean): Record<string, unknown> {
+  const current = window.history.state
+  const next = current && typeof current === 'object' ? { ...current } : {}
+  if (eventObject) next[EVENT_OBJECT_HISTORY_KEY] = true
+  else delete next[EVENT_OBJECT_HISTORY_KEY]
+  return next
+}
+
+function isEventObjectHistoryEntry(): boolean {
+  const state = window.history.state
+  return Boolean(state && typeof state === 'object' && state[EVENT_OBJECT_HISTORY_KEY] === true)
+}
 
 export default function MapApp({ categories }: Props) {
   const searchParams = useSearchParams()
@@ -25,6 +43,9 @@ export default function MapApp({ categories }: Props) {
   )
   const [activeDistrict, setActiveDistrict] = useState<number | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('object'))
+  const [activeView, setActiveView] = useState<MapViewMode>(
+    searchParams.get('view') === 'events' ? 'events' : 'map'
+  )
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [fitDistrict, setFitDistrict] = useState<{ districtId: number; tick: number } | null>(null)
   const [dataReady, setDataReady] = useState(false)
@@ -69,13 +90,26 @@ export default function MapApp({ categories }: Props) {
     return () => window.clearTimeout(timer)
   }, [mapReady])
 
-  // шаринг: /?object=<id>
+  // URL сохраняет открытую вкладку и карточку, чтобы ссылкой можно было поделиться.
   useEffect(() => {
     const url = new URL(window.location.href)
     if (selectedId) url.searchParams.set('object', selectedId)
     else url.searchParams.delete('object')
-    window.history.replaceState(null, '', url)
-  }, [selectedId])
+    if (activeView === 'events') url.searchParams.set('view', 'events')
+    else url.searchParams.delete('view')
+    window.history.replaceState(window.history.state, '', url)
+  }, [selectedId, activeView])
+
+  useEffect(() => {
+    const syncFromHistory = () => {
+      const params = new URL(window.location.href).searchParams
+      const objectId = params.get('object')
+      setSelectedId(objectId)
+      setActiveView(params.get('view') === 'events' ? 'events' : 'map')
+    }
+    window.addEventListener('popstate', syncFromHistory)
+    return () => window.removeEventListener('popstate', syncFromHistory)
+  }, [])
 
   const districtOptions = useMemo(
     () =>
@@ -156,6 +190,14 @@ export default function MapApp({ categories }: Props) {
     setSelectedId(id)
   }, [objectsFC, activeCats, activeDistrict])
 
+  const pickEventObject = useCallback((id: string) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('view', 'events')
+    url.searchParams.set('object', id)
+    window.history.pushState(historyState(true), '', url)
+    pickObject(id)
+  }, [pickObject])
+
   const activeDistrictName =
     activeDistrict === null
       ? null
@@ -166,7 +208,41 @@ export default function MapApp({ categories }: Props) {
     setActiveCats(new Set(categories.map((category) => category.id)))
   }, [categories])
 
-  const closeObject = useCallback(() => setSelectedId(null), [])
+  const closeObject = useCallback(() => {
+    if (activeView === 'events' && isEventObjectHistoryEntry()) {
+      window.history.back()
+      return
+    }
+    setSelectedId(null)
+  }, [activeView])
+
+  const changeView = useCallback((view: MapViewMode) => {
+    setPreviewId(null)
+    if (view === activeView) {
+      if (selectedId && isEventObjectHistoryEntry()) {
+        window.history.back()
+      } else {
+        setSelectedId(null)
+      }
+      return
+    }
+    setSelectedId(null)
+    setActiveView(view)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('object')
+    if (view === 'events') url.searchParams.set('view', 'events')
+    else url.searchParams.delete('view')
+    window.history.pushState(historyState(false), '', url)
+  }, [activeView, selectedId])
+
+  const closeEvents = useCallback(() => {
+    changeView('map')
+    window.requestAnimationFrame(() => {
+      Array.from(document.querySelectorAll<HTMLElement>('[data-map-mode-map]'))
+        .find((element) => element.offsetParent !== null)
+        ?.focus()
+    })
+  }, [changeView])
 
   return (
     <main className="map-shell relative h-dvh w-full overflow-hidden">
@@ -186,7 +262,7 @@ export default function MapApp({ categories }: Props) {
         onError={() => setMapIssue(true)}
       />
 
-      <header className={`map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId ? 'md:pr-[460px]' : ''}`}>
+      <header className={`map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId ? 'md:pr-[480px] xl:pr-[540px]' : activeView === 'events' ? 'xl:pr-[540px]' : ''}`}>
         <div className="mx-auto flex max-w-[1480px] items-start gap-3">
           <div className="brand-panel panel pointer-events-auto hidden h-14 w-[252px] shrink-0 items-center gap-3 rounded-2xl px-3.5 2xl:flex">
             <div className="brand-panel__crest">
@@ -200,49 +276,61 @@ export default function MapApp({ categories }: Props) {
           </div>
 
           <div className="pointer-events-auto min-w-0 flex-1">
-            <div className="md:max-w-[620px]">
-              <SearchBar
-                objects={objectsFC}
-                categories={categories}
-                districts={districtOptions}
-                loading={!dataReady}
-                onPickObject={pickObject}
-                onPickCategory={pickCategory}
-                onPickDistrict={selectDistrict}
-                onPreviewObject={setPreviewId}
-              />
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="min-w-0 flex-1 md:max-w-[620px]">
+                <SearchBar
+                  objects={objectsFC}
+                  categories={categories}
+                  districts={districtOptions}
+                  loading={!dataReady}
+                  onPickObject={pickObject}
+                  onPickCategory={pickCategory}
+                  onPickDistrict={selectDistrict}
+                  onPreviewObject={setPreviewId}
+                />
+              </div>
+              <div className="hidden shrink-0 xl:block">
+                <MapModeNav active={activeView} onChange={changeView} />
+              </div>
             </div>
-            <CategoryChips
-              categories={categories}
-              activeCats={activeCats}
-              activeDistrictName={activeDistrictName}
-              counts={categoryCounts}
-              visibleCount={filteredFC?.features.length ?? 0}
-              onShowAll={showAllCategories}
-              onToggleCat={(id) => {
-                setPreviewId(null)
-                setActiveCats((prev) => {
-                  if (prev.size === categories.length) return new Set([id])
-                  const nextSet = new Set(prev)
-                  if (nextSet.has(id)) nextSet.delete(id)
-                  else nextSet.add(id)
-                  return nextSet
-                })
-              }}
-              onClearDistrict={() => selectDistrict(null)}
-            />
+            {activeView === 'map' && (
+              <CategoryChips
+                categories={categories}
+                activeCats={activeCats}
+                activeDistrictName={activeDistrictName}
+                counts={categoryCounts}
+                visibleCount={filteredFC?.features.length ?? 0}
+                onShowAll={showAllCategories}
+                onToggleCat={(id) => {
+                  setPreviewId(null)
+                  setActiveCats((prev) => {
+                    if (prev.size === categories.length) return new Set([id])
+                    const nextSet = new Set(prev)
+                    if (nextSet.has(id)) nextSet.delete(id)
+                    else nextSet.add(id)
+                    return nextSet
+                  })
+                }}
+                onClearDistrict={() => selectDistrict(null)}
+              />
+            )}
           </div>
         </div>
       </header>
 
-      <div className="brand-panel panel absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 z-10 flex h-11 items-center gap-2.5 rounded-2xl px-2.5 md:hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/gerb-tyumen.svg" alt="" className="h-7 w-auto" />
-        <p className="pr-1 text-xs font-semibold">Память Тюмени</p>
+      <div
+        data-map-mode-mobile
+        className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[15] flex justify-center px-3 xl:hidden"
+      >
+        <MapModeNav
+          active={activeView}
+          onChange={changeView}
+          className="pointer-events-auto w-full max-w-[360px]"
+        />
       </div>
 
-      {(loadIssue || mapIssue) && !showPreloader && (
-        <div className="panel absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3 text-sm shadow-2xl" role="alert">
+      {activeView === 'map' && (loadIssue || mapIssue) && !showPreloader && (
+        <div className="map-issue-banner panel absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3 text-sm shadow-2xl" role="alert">
           <span className="text-[var(--ink-muted)]">{mapIssue ? 'Не удалось загрузить карту' : 'Часть данных не загрузилась'}</span>
           <button type="button" onClick={() => mapIssue ? window.location.reload() : void loadData()} className="font-semibold text-[var(--accent)]">
             Повторить
@@ -250,7 +338,7 @@ export default function MapApp({ categories }: Props) {
         </div>
       )}
 
-      {activeCats.size === 0 && !showPreloader && (
+      {activeView === 'map' && activeCats.size === 0 && !showPreloader && (
         <div className="panel absolute left-1/2 top-1/2 z-10 w-[min(320px,calc(100%-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-5 text-center">
           <p className="text-sm font-semibold">Все категории скрыты</p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">
@@ -262,9 +350,17 @@ export default function MapApp({ categories }: Props) {
         </div>
       )}
 
+      {activeView === 'events' && (
+        <EventsPanel
+          suspended={Boolean(selectedId)}
+          onClose={closeEvents}
+          onSelectObject={pickEventObject}
+        />
+      )}
+
       {selectedId && <ObjectCard id={selectedId} onClose={closeObject} />}
 
-      {showPreloader && (
+      {showPreloader && activeView === 'map' && !selectedId && (
         <MapPreloader
           progress={12 + (dataReady ? 44 : 0) + (mapReady || mapIssue ? 44 : 0)}
           label={!dataReady ? 'Загружаем объекты' : !mapReady && !mapIssue ? 'Настраиваем карту' : mapIssue ? 'Проверяем соединение' : 'Готово'}

@@ -1,0 +1,17 @@
+import { NextResponse } from 'next/server'
+import { getUpcomingEvents } from '@/lib/public-events'
+
+export const dynamic = 'force-dynamic'
+
+/** Текущие и предстоящие мероприятия у опубликованных памятников. */
+export async function GET() {
+  try {
+    return NextResponse.json(await getUpcomingEvents())
+  } catch (error) {
+    console.error('GET /api/events:', error)
+    return NextResponse.json(
+      { error: 'Не удалось загрузить мероприятия' },
+      { status: 500 }
+    )
+  }
+}

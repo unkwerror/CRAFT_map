@@ -29,6 +29,17 @@ export interface EventDto {
   isToday: boolean
 }
 
+/** Текущее или предстоящее мероприятие с данными опубликованного памятника. */
+export interface PublicEventDto extends EventDto {
+  objectId: string
+  objectTitle: string
+  categoryTitle: string
+  categoryColor: string
+  address: string | null
+  districtName: string | null
+  thumb: string
+}
+
 export interface CategoryDto {
   id: string
   title: string
