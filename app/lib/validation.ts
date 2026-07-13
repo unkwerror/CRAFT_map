@@ -37,6 +37,12 @@ export const objectInputSchema = z.object({
 
 export type ObjectInput = z.infer<typeof objectInputSchema>
 
+/** Координаты из query string для определения округа через PostGIS. */
+export const districtLookupQuerySchema = z.object({
+  lng: z.string().trim().min(1).transform(Number).pipe(z.number().finite().min(-180).max(180)),
+  lat: z.string().trim().min(1).transform(Number).pipe(z.number().finite().min(-90).max(90)),
+})
+
 export const publishedPatchSchema = z.object({ published: z.boolean() })
 
 export const userInputSchema = z.object({

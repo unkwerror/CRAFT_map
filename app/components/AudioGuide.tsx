@@ -25,8 +25,8 @@ export default function AudioGuide({ audioUrl, audioText }: Props) {
           </svg>
         </span>
         <div className="min-w-0 flex-1">
-          <h3 id={`${baseId}-title`} className="text-sm font-semibold">Аудиогид</h3>
-          <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+          <h3 id={`${baseId}-title`} className="text-[15px] font-semibold leading-snug">Аудиогид</h3>
+          <p className="mt-0.5 text-[13px] leading-[1.45] text-[var(--ink-muted)]">
             {audioUrl ? 'История памятника в аудиоформате' : 'Доступна текстовая версия рассказа'}
           </p>
         </div>
@@ -39,7 +39,7 @@ export default function AudioGuide({ audioUrl, audioText }: Props) {
             }}
             aria-expanded={playerOpen}
             aria-controls={`${baseId}-player`}
-            className="object-audio__play min-h-10 rounded-xl px-3 text-xs font-semibold"
+            className="object-audio__play min-h-10 rounded-xl px-3 text-[13px] font-semibold"
           >
             {playerOpen ? 'Скрыть' : 'Слушать'}
           </button>
@@ -66,13 +66,13 @@ export default function AudioGuide({ audioUrl, audioText }: Props) {
             onClick={() => setTextOpen((open) => !open)}
             aria-expanded={textOpen}
             aria-controls={`${baseId}-transcript`}
-            className="flex min-h-10 w-full items-center justify-between gap-3 text-left text-xs font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)]"
+            className="flex min-h-10 w-full items-center justify-between gap-3 text-left text-[13px] font-semibold text-[var(--ink-muted)] hover:text-[var(--ink)]"
           >
             <span>{textOpen ? 'Скрыть текст аудиогида' : 'Читать текст аудиогида'}</span>
             <span className={`object-disclosure__chevron ${textOpen ? 'object-disclosure__chevron--open' : ''}`} aria-hidden>⌄</span>
           </button>
           {textOpen && (
-            <p id={`${baseId}-transcript`} className="object-reveal mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/84">
+            <p id={`${baseId}-transcript`} className="object-reveal mt-2 whitespace-pre-line text-[15px] leading-[1.72] text-[var(--ink)]/92">
               {audioText}
             </p>
           )}

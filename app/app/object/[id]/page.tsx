@@ -80,15 +80,15 @@ export default async function ObjectPage({ params }: Params) {
   if (!obj) notFound()
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
+    <main className="object-page mx-auto max-w-2xl px-4 py-8">
       <Link
         href={`/?object=${obj.id}`}
-        className="text-sm text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
+        className="text-[15px] font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
       >
         ← Показать на карте
       </Link>
 
-      <div className="mt-5 flex items-center gap-2 text-xs font-medium text-[var(--ink-muted)]">
+      <div className="mt-5 flex items-center gap-2 text-[13px] font-semibold leading-none text-[var(--ink-muted)]">
         <span
           className="h-2.5 w-2.5 rounded-full"
           style={{ background: obj.category_color }}
@@ -97,10 +97,10 @@ export default async function ObjectPage({ params }: Params) {
         {obj.category_title}
       </div>
 
-      <h1 className="mt-2 text-2xl font-semibold leading-snug">{obj.title}</h1>
+      <h1 className="mt-2 text-[28px] font-[650] leading-[1.2] tracking-[-0.012em] md:text-[32px]">{obj.title}</h1>
 
       {obj.address && (
-        <p className="mt-1.5 text-sm text-[var(--ink-muted)]">
+        <p className="mt-2 text-[15px] leading-[1.55] text-[var(--ink-muted)]">
           {obj.address}
           {obj.district_name ? ` · ${obj.district_name} округ` : ''}
         </p>

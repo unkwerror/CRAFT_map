@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import MiniMap from './MiniMap'
 import PhotoUpload from './PhotoUpload'
 import ModelUpload from './ModelUpload'
@@ -16,6 +16,7 @@ interface Props {
 }
 
 const MEDIA_UPLOAD_MESSAGE = 'Дождитесь загрузки медиа'
+type DistrictStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export default function ObjectForm({ categories, initial }: Props) {
   const router = useRouter()
@@ -25,6 +26,10 @@ export default function ObjectForm({ categories, initial }: Props) {
   const [address, setAddress] = useState(initial?.address ?? '')
   const [lng, setLng] = useState<number | null>(initial?.lng ?? null)
   const [lat, setLat] = useState<number | null>(initial?.lat ?? null)
+  const [districtName, setDistrictName] = useState<string | null>(initial?.districtName ?? null)
+  const [districtStatus, setDistrictStatus] = useState<DistrictStatus>(
+    initial?.districtName ? 'ready' : 'idle'
+  )
   const [photos, setPhotos] = useState<Photo[]>(initial?.photos ?? [])
   const [videos, setVideos] = useState<Video[]>(initial?.videos ?? [])
   const [audioUrl, setAudioUrl] = useState<string | null>(initial?.audioUrl ?? null)
@@ -41,6 +46,46 @@ export default function ObjectForm({ categories, initial }: Props) {
   const [audioUploading, setAudioUploading] = useState(false)
   const [modelUploading, setModelUploading] = useState(false)
   const mediaUploading = photoUploading || videoUploading || audioUploading || modelUploading
+
+  useEffect(() => {
+    if (
+      lng === null ||
+      lat === null ||
+      !Number.isFinite(lng) ||
+      !Number.isFinite(lat) ||
+      lng < -180 ||
+      lng > 180 ||
+      lat < -90 ||
+      lat > 90
+    ) {
+      setDistrictName(null)
+      setDistrictStatus('idle')
+      return
+    }
+
+    const controller = new AbortController()
+    setDistrictName(null)
+    setDistrictStatus('loading')
+    const timeout = window.setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ lng: String(lng), lat: String(lat) })
+        const res = await fetch(`/api/districts/at?${params}`, { signal: controller.signal })
+        if (!res.ok) throw new Error('district lookup failed')
+        const data = (await res.json()) as { district: { id: number; name: string } | null }
+        setDistrictName(data.district?.name ?? null)
+        setDistrictStatus('ready')
+      } catch (lookupError) {
+        if (lookupError instanceof Error && lookupError.name === 'AbortError') return
+        setDistrictName(null)
+        setDistrictStatus('error')
+      }
+    }, 200)
+
+    return () => {
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [lng, lat])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -241,6 +286,22 @@ export default function ObjectForm({ categories, initial }: Props) {
               className={inputCls}
             />
           </label>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" role="status">
+          <span className="font-medium">Округ: </span>
+          {districtStatus === 'loading' && <span className="text-slate-500">определяем…</span>}
+          {districtStatus === 'ready' && districtName && <span>{districtName}</span>}
+          {districtStatus === 'ready' && !districtName && (
+            <span className="text-amber-700">точка вне границ округов</span>
+          )}
+          {districtStatus === 'idle' && <span className="text-slate-500">выберите координату</span>}
+          {districtStatus === 'error' && (
+            <span className="text-red-600">не удалось определить</span>
+          )}
+          <span className="mt-0.5 block text-xs text-slate-500">
+            Определяется автоматически по выбранной точке
+          </span>
         </div>
 
         {mediaUploading && (

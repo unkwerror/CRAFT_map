@@ -491,6 +491,12 @@ textarea {
   animation: sheet-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
   overscroll-behavior: contain;
 }
+.object-sheet,
+.object-page {
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  font-kerning: normal;
+  font-optical-sizing: auto;
+}
 .object-sheet-backdrop {
   animation: object-backdrop-in 180ms ease-out both;
   backdrop-filter: blur(2px);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { objectInputSchema } from './validation'
+import { districtLookupQuerySchema, objectInputSchema } from './validation'
 
 const validObject = {
   title: 'Памятник',
@@ -22,5 +22,20 @@ describe('objectInputSchema', () => {
 
   it('rejects coordinates outside the globe', () => {
     expect(objectInputSchema.safeParse({ ...validObject, lat: 100 }).success).toBe(false)
+  })
+})
+
+describe('districtLookupQuerySchema', () => {
+  it('parses valid query-string coordinates', () => {
+    expect(districtLookupQuerySchema.parse({ lng: '65.53', lat: '57.15' })).toEqual({
+      lng: 65.53,
+      lat: 57.15,
+    })
+  })
+
+  it('rejects missing, empty and out-of-range coordinates', () => {
+    expect(districtLookupQuerySchema.safeParse({ lng: null, lat: '57.15' }).success).toBe(false)
+    expect(districtLookupQuerySchema.safeParse({ lng: '', lat: '57.15' }).success).toBe(false)
+    expect(districtLookupQuerySchema.safeParse({ lng: '181', lat: '57.15' }).success).toBe(false)
   })
 })

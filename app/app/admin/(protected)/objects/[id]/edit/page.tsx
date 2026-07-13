@@ -17,6 +17,7 @@ export default async function EditObjectPage({ params }: { params: Promise<{ id:
     title: string
     description: string | null
     category_id: string
+    district_name: string | null
     address: string | null
     lng: number
     lat: number
@@ -30,11 +31,14 @@ export default async function EditObjectPage({ params }: { params: Promise<{ id:
     published: boolean
     sort_weight: number
   }[]>`
-    select o.id, o.title, o.description, o.category_id, o.address,
+    select o.id, o.title, o.description, o.category_id, d.name as district_name, o.address,
            st_x(o.geom) as lng, st_y(o.geom) as lat, o.photos, o.videos,
            o.audio_url, o.audio_text, o.rating, o.sections, o.model_url, o.published,
            o.sort_weight
-    from objects o where o.id = ${id} limit 1`
+    from objects o
+    left join districts d on d.id = o.district_id
+    where o.id = ${id}
+    limit 1`
 
   const r = rows[0]
   if (!r) notFound()
@@ -46,7 +50,7 @@ export default async function EditObjectPage({ params }: { params: Promise<{ id:
     categoryId: r.category_id,
     categoryTitle: '',
     categoryColor: '',
-    districtName: null,
+    districtName: r.district_name,
     address: r.address,
     lng: r.lng,
     lat: r.lat,

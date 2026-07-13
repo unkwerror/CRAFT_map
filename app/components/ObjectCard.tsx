@@ -200,7 +200,7 @@ export default function ObjectCard({ id, onClose }: Props) {
         aria-label={data ? undefined : 'Карточка объекта'}
         className="object-sheet panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)] outline-none
                    max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[92dvh] max-md:rounded-t-[26px]
-                   md:right-0 md:top-0 md:h-full md:w-[440px] md:border-l md:border-[var(--hairline)]"
+                   md:right-0 md:top-0 md:h-full md:w-[clamp(460px,38vw,520px)] md:border-l md:border-[var(--hairline)]"
       >
       <div
         className="absolute left-1/2 top-0 z-20 flex h-7 w-20 -translate-x-1/2 items-center justify-center md:hidden"
@@ -262,7 +262,7 @@ export default function ObjectCard({ id, onClose }: Props) {
 
           <div className="object-content flex flex-1 flex-col gap-3.5 p-4 pb-5 md:gap-4 md:p-6">
             <div
-              className="object-category-badge flex w-fit items-center gap-2 rounded-full px-2.5 py-1.5 text-xs font-semibold"
+              className="object-category-badge flex w-fit items-center gap-2 rounded-full px-2.5 py-1.5 text-[13px] font-semibold leading-none"
               style={{ '--category-color': data.categoryColor } as CSSProperties}
             >
               <span
@@ -273,11 +273,11 @@ export default function ObjectCard({ id, onClose }: Props) {
               {data.categoryTitle}
             </div>
 
-            <div className="space-y-1.5">
-              <h2 id={titleId} className="text-xl font-semibold leading-snug tracking-[-0.015em] md:text-[22px]">{data.title}</h2>
+            <div className="space-y-2">
+              <h2 id={titleId} className="text-[23px] font-[650] leading-[1.22] tracking-[-0.012em] md:text-[26px]">{data.title}</h2>
               {data.rating !== null && <Stars rating={data.rating} />}
               {(data.address || data.districtName) && (
-                <p className="flex items-start gap-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
+                <p className="flex items-start gap-1.5 text-[15px] leading-[1.55] text-[var(--ink-muted)]">
                   <svg className="mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" stroke="currentColor" strokeWidth="1.6" />
                     <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="1.6" />
@@ -295,8 +295,8 @@ export default function ObjectCard({ id, onClose }: Props) {
             {(todayEvents.length > 0 || upcomingEvents.length > 0) && (
               <section className="space-y-2" aria-labelledby={`${titleId}-events`}>
                 <div className="flex items-center justify-between gap-3">
-                  <h3 id={`${titleId}-events`} className="text-sm font-semibold">Мероприятия</h3>
-                  <span className="text-[11px] text-[var(--ink-subtle)]">{todayEvents.length + upcomingEvents.length}</span>
+                  <h3 id={`${titleId}-events`} className="text-[15px] font-semibold leading-snug">Мероприятия</h3>
+                  <span className="text-xs text-[var(--ink-subtle)]">{todayEvents.length + upcomingEvents.length}</span>
                 </div>
                 {todayEvents.map((e) => (
                   <div
@@ -307,21 +307,21 @@ export default function ObjectCard({ id, onClose }: Props) {
                       <span className="soft-pulse inline-block h-2 w-2 rounded-full bg-[var(--accent)]" aria-hidden />
                       Сегодня · {eventDates(e)}
                     </p>
-                    <p className="mt-1 text-sm font-medium">{e.title}</p>
+                    <p className="mt-1.5 text-[15px] font-medium leading-[1.4]">{e.title}</p>
                     {e.description && (
-                      <p className="mt-1 whitespace-pre-line text-sm text-[var(--ink)]/80">{e.description}</p>
+                      <p className="mt-1 whitespace-pre-line text-[15px] leading-[1.6] text-[var(--ink)]/88">{e.description}</p>
                     )}
                   </div>
                 ))}
                 {shownUpcomingEvents.map((e) => (
                   <div key={e.id} className="rounded-xl border border-[var(--hairline)] bg-white/[0.03] p-3">
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink-muted)]">
+                    <p className="flex items-center gap-1.5 text-[13px] font-medium leading-snug text-[var(--ink-muted)]">
                       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden><rect x="2" y="3.5" width="12" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.3"/><path d="M5 2v3m6-3v3M2 7h12" stroke="currentColor" strokeWidth="1.3"/></svg>
                       {eventDates(e)}
                     </p>
-                    <p className="mt-1 text-sm font-medium">{e.title}</p>
+                    <p className="mt-1.5 text-[15px] font-medium leading-[1.4]">{e.title}</p>
                     {e.description && (
-                      <p className="mt-1 whitespace-pre-line text-sm text-[var(--ink)]/80">{e.description}</p>
+                      <p className="mt-1 whitespace-pre-line text-[15px] leading-[1.6] text-[var(--ink)]/88">{e.description}</p>
                     )}
                   </div>
                 ))}
@@ -330,7 +330,7 @@ export default function ObjectCard({ id, onClose }: Props) {
                     type="button"
                     onClick={() => setEventsOpen((open) => !open)}
                     aria-expanded={eventsOpen}
-                    className="min-h-10 w-full rounded-xl text-xs font-semibold text-[var(--ink-muted)] hover:bg-white/[0.04] hover:text-[var(--ink)]"
+                    className="min-h-10 w-full rounded-xl text-[13px] font-semibold text-[var(--ink-muted)] hover:bg-white/[0.04] hover:text-[var(--ink)]"
                   >
                     {eventsOpen ? 'Скрыть остальные' : `Ещё ${upcomingEvents.length - 2}`}
                   </button>

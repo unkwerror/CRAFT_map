@@ -39,15 +39,15 @@ export default function ObjectSections({ objectId, description, sections }: Prop
   return (
     <section className="object-story" aria-labelledby={`${baseId}-title`}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 id={`${baseId}-title`} className="text-base font-semibold">О памятнике</h3>
-        {sections.length > 0 && <span className="text-[11px] text-[var(--ink-subtle)]">Разделов: {sections.length}</span>}
+        <h3 id={`${baseId}-title`} className="text-[17px] font-semibold leading-snug">О памятнике</h3>
+        {sections.length > 0 && <span className="text-xs text-[var(--ink-subtle)]">Разделов: {sections.length}</span>}
       </div>
 
       {description && (
         <div className="rounded-2xl border border-[var(--hairline)] bg-white/[0.025] p-3.5">
           <p
             id={`${baseId}-description`}
-            className="whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/84"
+            className="whitespace-pre-line text-[15px] leading-[1.72] text-[var(--ink)]/92"
           >
             {visibleDescription}
           </p>
@@ -57,7 +57,7 @@ export default function ObjectSections({ objectId, description, sections }: Prop
               onClick={() => setDescriptionOpen((open) => !open)}
               aria-expanded={descriptionOpen}
               aria-controls={`${baseId}-description`}
-              className="mt-2 min-h-9 text-xs font-semibold text-[var(--accent)]"
+              className="mt-2 min-h-9 text-[13px] font-semibold text-[var(--accent)]"
             >
               {descriptionOpen ? 'Свернуть' : 'Читать полностью'}
             </button>
@@ -77,14 +77,14 @@ export default function ObjectSections({ objectId, description, sections }: Prop
                   onClick={() => setOpenSection(open ? null : index)}
                   aria-expanded={open}
                   aria-controls={contentId}
-                  className="flex min-h-12 w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left text-sm font-semibold"
+                  className="flex min-h-12 w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left text-[15px] font-semibold leading-[1.4]"
                 >
                   <span>{section.title}</span>
                   <span className={`object-disclosure__chevron ${open ? 'object-disclosure__chevron--open' : ''}`} aria-hidden>⌄</span>
                 </button>
                 {open && (
                   <div id={contentId} className="object-reveal px-3.5 pb-4">
-                    <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--ink)]/82">{section.text}</p>
+                    <p className="whitespace-pre-line text-[15px] leading-[1.72] text-[var(--ink)]/90">{section.text}</p>
                   </div>
                 )}
               </div>
