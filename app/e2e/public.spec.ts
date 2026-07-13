@@ -76,6 +76,25 @@ test('афиша доступна с клавиатуры и имеет филь
   await expect(page.getByRole('button', { name: 'Этот месяц' })).toBeVisible()
 })
 
+test('карта, список и мероприятия доступны через одну навигацию', async ({ page }) => {
+  await page.goto('/')
+  const navigation = page.locator('.map-mode-nav:visible')
+
+  await expect(navigation).toHaveCount(1)
+  await expect(navigation.getByRole('button', { name: 'Карта' })).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Список' })).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Мероприятия' })).toBeVisible()
+  await expect(page.locator('[data-places-view-toggle]')).toHaveCount(0)
+
+  await navigation.getByRole('button', { name: 'Список' }).click()
+  await expect(page.locator('[data-places-list-panel]')).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Список' })).toHaveAttribute('aria-current', 'page')
+
+  await navigation.getByRole('button', { name: 'Карта' }).click()
+  await expect(page.locator('[data-places-list-panel]')).toBeHidden()
+  await expect(navigation.getByRole('button', { name: 'Карта' })).toHaveAttribute('aria-current', 'page')
+})
+
 test('ссылка сохраняет открытую карточку и корректно восстанавливается после перезагрузки', async ({ page, request }) => {
   const object = await firstObject(request)
   await page.goto('/')

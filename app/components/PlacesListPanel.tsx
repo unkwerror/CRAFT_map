@@ -127,7 +127,7 @@ export default function PlacesListPanel({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  // На телефоне список заменяет карту, но оставляет доступными нижнюю навигацию и переключатель.
+  // На телефоне список заменяет карту, но оставляет доступной единую нижнюю навигацию.
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)')
     let restore: (() => void) | null = null
@@ -142,8 +142,7 @@ export default function PlacesListPanel({
         const htmlElement = element as HTMLElement
         return (
           element !== panel &&
-          !htmlElement.hasAttribute('data-map-mode-mobile') &&
-          !htmlElement.hasAttribute('data-places-view-toggle')
+          !htmlElement.hasAttribute('data-map-mode-mobile')
         )
       }) as HTMLElement[]
       const previous = siblings.map((element) => ({

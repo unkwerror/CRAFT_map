@@ -489,39 +489,6 @@ textarea {
   box-shadow: inset 0 0 0 1px rgba(239, 173, 69, 0.035);
 }
 
-/* Альтернативный доступный список тех же мест, что показаны на карте. */
-.places-view-toggle {
-  position: absolute;
-  bottom: 20px;
-  left: 16px;
-  z-index: 16;
-  display: flex;
-  gap: 3px;
-  border-radius: 15px;
-  padding: 3px;
-}
-.places-view-toggle__item {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  padding: 0 12px;
-  color: var(--ink-muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-.places-view-toggle__item:hover {
-  background: rgba(255, 255, 255, 0.045);
-  color: var(--ink);
-}
-.places-view-toggle__item--active {
-  border-color: rgba(239, 173, 69, 0.34);
-  background: rgba(239, 173, 69, 0.13);
-  color: var(--accent);
-}
 .places-list-panel {
   background: linear-gradient(180deg, #13232e 0, #101d27 42%, #0d1922 100%);
   color: var(--ink);
@@ -1350,9 +1317,11 @@ textarea {
 }
 
 @media (max-width: 767px) {
-  .places-view-toggle {
-    bottom: calc(max(5.25rem, calc(env(safe-area-inset-bottom) + 4.5rem)) + 74px);
-    left: 12px;
+  .map-mode-nav__item {
+    min-width: 0;
+    gap: 5px;
+    padding-inline: 7px;
+    font-size: 12px;
   }
   .places-list-panel {
     animation-name: sheet-up;
@@ -1417,9 +1386,6 @@ textarea {
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {
-  .places-view-toggle {
-    bottom: calc(max(5.25rem, calc(env(safe-area-inset-bottom) + 4.5rem)) + 74px);
-  }
   .map-shell .maplibregl-ctrl-bottom-right {
     bottom: max(5.25rem, calc(env(safe-area-inset-bottom) + 4.5rem));
   }

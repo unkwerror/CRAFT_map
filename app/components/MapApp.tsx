@@ -10,9 +10,7 @@ import MapModeNav from './MapModeNav'
 import ObjectCard from './ObjectCard'
 import MapPreloader from './MapPreloader'
 import PlacesListPanel from './PlacesListPanel'
-import PlacesViewToggle from './PlacesViewToggle'
-import type { MapViewMode } from './MapModeNav'
-import type { PlacesView } from './PlacesViewToggle'
+import type { MapNavigationMode, MapViewMode } from './MapModeNav'
 import { rankSearchMatch } from '@/lib/map-search'
 import {
   decodeMapUrl,
@@ -38,6 +36,7 @@ interface Props {
 
 type FC = GeoJSON.FeatureCollection
 type LoadFailure = 'timeout' | 'error' | null
+type PlacesView = Exclude<MapNavigationMode, 'events'>
 
 interface DataFailures {
   objects: LoadFailure
@@ -566,20 +565,13 @@ export default function MapApp({ categories }: Props) {
     pushUrlState({ view: 'map', objectId: null })
   }, [pushUrlState, selectedId])
 
-  const changePlacesView = useCallback((view: PlacesView) => {
-    if (activeView === 'map' && placesView === view && !selectedId) return
-    setPreviewId(null)
-    setSelectedId(null)
-    setActiveView('map')
-    setPlacesView(view)
-    pushUrlState({ view, objectId: null })
-  }, [activeView, placesView, pushUrlState, selectedId])
-
   const closePlacesList = useCallback(() => {
     setPlacesView('map')
     pushUrlState({ view: 'map', objectId: null })
     window.requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('[data-places-view-map]')?.focus()
+      Array.from(document.querySelectorAll<HTMLElement>('[data-places-view-map]'))
+        .find((element) => element.offsetParent !== null)
+        ?.focus()
     })
   }, [pushUrlState])
 
@@ -601,15 +593,20 @@ export default function MapApp({ categories }: Props) {
     })
   }, [categories, pushUrlState])
 
-  const changeView = useCallback((view: MapViewMode) => {
-    const nextView: PublicMapView = view === 'events' ? 'events' : 'map'
+  const changeView = useCallback((view: MapNavigationMode) => {
+    const nextView: PublicMapView = view
     const changed = publicView(activeView, placesView) !== nextView || selectedId !== null
     if (!changed) return
     setPreviewId(null)
-    setPlacesView('map')
     setSelectedId(null)
-    if (view === 'events') setEventsMounted(true)
-    setActiveView(view)
+    if (view === 'list') {
+      setActiveView('map')
+      setPlacesView('list')
+    } else {
+      setPlacesView('map')
+      if (view === 'events') setEventsMounted(true)
+      setActiveView(view)
+    }
     pushUrlState({ view: nextView, objectId: null })
   }, [activeView, placesView, pushUrlState, selectedId])
 
@@ -677,7 +674,7 @@ export default function MapApp({ categories }: Props) {
                 />
               </div>
               <div className="hidden shrink-0 xl:block">
-                <MapModeNav active={activeView} onChange={changeView} />
+                <MapModeNav active={publicView(activeView, placesView)} onChange={changeView} />
               </div>
             </div>
             {activeView === 'map' && (
@@ -701,15 +698,11 @@ export default function MapApp({ categories }: Props) {
         className="pointer-events-none absolute inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[15] flex justify-center px-3 xl:hidden"
       >
         <MapModeNav
-          active={activeView}
+          active={publicView(activeView, placesView)}
           onChange={changeView}
           className="pointer-events-auto w-full max-w-[360px]"
         />
       </div>
-
-      {activeView === 'map' && !showPreloader && !selectedId && (
-        <PlacesViewToggle active={placesView} onChange={changePlacesView} />
-      )}
 
       {activeView === 'map' && placesView === 'map' && issueMessage && !showPreloader && (
         <div className="map-issue-banner panel absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3 text-sm shadow-2xl" role="alert">
