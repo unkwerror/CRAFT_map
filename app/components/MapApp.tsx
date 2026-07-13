@@ -18,19 +18,12 @@ interface Props {
 
 type FC = GeoJSON.FeatureCollection
 
-const EVENT_OBJECT_HISTORY_KEY = 'craftEventObject'
-
-function historyState(eventObject: boolean): Record<string, unknown> {
+function navigationHistoryState(): Record<string, unknown> {
   const current = window.history.state
   const next = current && typeof current === 'object' ? { ...current } : {}
-  if (eventObject) next[EVENT_OBJECT_HISTORY_KEY] = true
-  else delete next[EVENT_OBJECT_HISTORY_KEY]
+  // Удаляем маркер старой логики возврата в афишу, если он остался в history.
+  delete next.craftEventObject
   return next
-}
-
-function isEventObjectHistoryEntry(): boolean {
-  const state = window.history.state
-  return Boolean(state && typeof state === 'object' && state[EVENT_OBJECT_HISTORY_KEY] === true)
 }
 
 export default function MapApp({ categories }: Props) {
@@ -192,9 +185,10 @@ export default function MapApp({ categories }: Props) {
 
   const pickEventObject = useCallback((id: string) => {
     const url = new URL(window.location.href)
-    url.searchParams.set('view', 'events')
+    url.searchParams.delete('view')
     url.searchParams.set('object', id)
-    window.history.pushState(historyState(true), '', url)
+    window.history.pushState(navigationHistoryState(), '', url)
+    setActiveView('map')
     pickObject(id)
   }, [pickObject])
 
@@ -208,22 +202,12 @@ export default function MapApp({ categories }: Props) {
     setActiveCats(new Set(categories.map((category) => category.id)))
   }, [categories])
 
-  const closeObject = useCallback(() => {
-    if (activeView === 'events' && isEventObjectHistoryEntry()) {
-      window.history.back()
-      return
-    }
-    setSelectedId(null)
-  }, [activeView])
+  const closeObject = useCallback(() => setSelectedId(null), [])
 
   const changeView = useCallback((view: MapViewMode) => {
     setPreviewId(null)
     if (view === activeView) {
-      if (selectedId && isEventObjectHistoryEntry()) {
-        window.history.back()
-      } else {
-        setSelectedId(null)
-      }
+      setSelectedId(null)
       return
     }
     setSelectedId(null)
@@ -232,8 +216,8 @@ export default function MapApp({ categories }: Props) {
     url.searchParams.delete('object')
     if (view === 'events') url.searchParams.set('view', 'events')
     else url.searchParams.delete('view')
-    window.history.pushState(historyState(false), '', url)
-  }, [activeView, selectedId])
+    window.history.pushState(navigationHistoryState(), '', url)
+  }, [activeView])
 
   const closeEvents = useCallback(() => {
     changeView('map')
