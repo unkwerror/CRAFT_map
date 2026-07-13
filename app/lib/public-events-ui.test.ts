@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  eventSchemaDateTimes,
   filterPublicEvents,
+  filterPublicEventsByPeriod,
   formatEventDates,
+  formatEventTime,
   groupPublicEvents,
   parsePublicEventsResponse,
 } from './public-events-ui'
@@ -14,6 +17,15 @@ function makeEvent(overrides: Partial<PublicEventDto> = {}): PublicEventDto {
     description: null,
     startsOn: '2026-08-10',
     endsOn: '2026-08-10',
+    startsAt: '18:30',
+    endsAt: '20:00',
+    timezone: 'Asia/Yekaterinburg',
+    venue: 'Городская площадь',
+    organizer: 'Музей истории',
+    priceInfo: 'Бесплатно',
+    registrationUrl: null,
+    accessibility: null,
+    status: 'scheduled',
     isToday: false,
     objectId: 'object-1',
     objectTitle: 'Памятник героям',
@@ -46,6 +58,33 @@ describe('formatEventDates', () => {
   })
 })
 
+describe('formatEventTime', () => {
+  it('formats start time with and without an end', () => {
+    expect(formatEventTime('18:30', '20:00')).toBe('18:30–20:00')
+    expect(formatEventTime('18:30', null)).toBe('18:30')
+    expect(formatEventTime(null, null)).toBeNull()
+  })
+})
+
+describe('eventSchemaDateTimes', () => {
+  it('omits an incorrect midnight end for a timed event without end time', () => {
+    expect(eventSchemaDateTimes('2026-07-18', '2026-07-18', '18:00', null)).toEqual({
+      startDate: '2026-07-18T18:00:00+05:00',
+    })
+  })
+
+  it('keeps explicit timed and all-day ranges', () => {
+    expect(eventSchemaDateTimes('2026-07-18', '2026-07-18', '18:00', '20:00')).toEqual({
+      startDate: '2026-07-18T18:00:00+05:00',
+      endDate: '2026-07-18T20:00:00+05:00',
+    })
+    expect(eventSchemaDateTimes('2026-07-18', '2026-07-19', null, null)).toEqual({
+      startDate: '2026-07-18',
+      endDate: '2026-07-19',
+    })
+  })
+})
+
 describe('public event search', () => {
   it('ignores punctuation, repeated spaces, case and ё/е', () => {
     const events = [
@@ -57,6 +96,21 @@ describe('public event search', () => {
       'event-b',
     ])
     expect(filterPublicEvents(events, 'елка').map((event) => event.id)).toEqual(['event-b'])
+  })
+})
+
+describe('public event period filters', () => {
+  const events = [
+    makeEvent({ id: 'today', startsOn: '2026-07-13', endsOn: '2026-07-13' }),
+    makeEvent({ id: 'weekend', startsOn: '2026-07-18', endsOn: '2026-07-19' }),
+    makeEvent({ id: 'month', startsOn: '2026-07-30', endsOn: '2026-08-02' }),
+    makeEvent({ id: 'later', startsOn: '2026-09-01', endsOn: '2026-09-01' }),
+  ]
+
+  it('filters today, the nearest weekend and the current month', () => {
+    expect(filterPublicEventsByPeriod(events, 'today', '2026-07-13').map((event) => event.id)).toEqual(['today'])
+    expect(filterPublicEventsByPeriod(events, 'weekend', '2026-07-13').map((event) => event.id)).toEqual(['weekend'])
+    expect(filterPublicEventsByPeriod(events, 'month', '2026-07-13').map((event) => event.id)).toEqual(['today', 'weekend', 'month'])
   })
 })
 

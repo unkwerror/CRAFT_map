@@ -9,6 +9,12 @@ export const pg =
   globalForDb.pgClient ??
   postgres(process.env.DATABASE_URL ?? 'postgres://craft:craft@localhost:5433/craft_map', {
     max: 10,
+    connect_timeout: 5,
+    idle_timeout: 20,
+    connection: {
+      application_name: 'craft-map-app',
+      statement_timeout: 15_000,
+    },
     onnotice: () => {},
   })
 

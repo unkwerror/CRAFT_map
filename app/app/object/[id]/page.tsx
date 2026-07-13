@@ -1,13 +1,18 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { cache } from 'react'
 import { pg } from '@/lib/db'
 import { normalizePhotos, normalizeSections, normalizeVideos } from '@/lib/object-content'
+import { formatEventDates, formatEventTime } from '@/lib/public-events-ui'
+import { getPublicEventsForObject } from '@/lib/public-events'
+import { absoluteSiteUrl, serializeJsonLd } from '@/lib/seo'
 import { uuidSchema } from '@/lib/validation'
-import type { DescriptionSection, Photo, Video } from '@/lib/types'
+import type { DescriptionSection, Photo, PublicEventDto, Video } from '@/lib/types'
 import AudioGuide from '@/components/AudioGuide'
 import ObjectMediaGallery from '@/components/ObjectMediaGallery'
 import ObjectSections from '@/components/ObjectSections'
+import ShareButton from '@/components/ShareButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +34,9 @@ interface Row {
   model_url: string | null
 }
 
-async function getObject(id: string): Promise<Row | null> {
+type ObjectPageData = Row & { events: PublicEventDto[] }
+
+const getObject = cache(async (id: string): Promise<ObjectPageData | null> => {
   if (!uuidSchema.safeParse(id).success) return null
   const rows = await pg<Row[]>`
     select o.id, o.title, o.description,
@@ -53,23 +60,46 @@ async function getObject(id: string): Promise<Row | null> {
     photos: normalizePhotos(row.photos),
     videos: normalizeVideos(row.videos),
     sections: normalizeSections(row.sections),
+    events: await getPublicEventsForObject(id),
   }
-}
+})
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params
   const obj = await getObject(id)
-  if (!obj) return { title: 'Объект не найден' }
-  const description = obj.description?.slice(0, 200) ?? `${obj.category_title} — карта памятных объектов Тюмени`
+  if (!obj) {
+    return {
+      title: 'Объект не найден',
+      robots: { index: false, follow: false },
+    }
+  }
+  const description = obj.description?.replace(/\s+/g, ' ').trim().slice(0, 200)
+    || `${obj.category_title} — карта памятных объектов Тюмени`
+  const canonicalPath = `/object/${obj.id}`
+  const images = obj.photos.map((photo) => ({
+    url: absoluteSiteUrl(photo.original),
+    alt: photo.alt ?? obj.title,
+  }))
   return {
-    title: `${obj.title} — Карта памятных объектов Тюмени`,
+    title: obj.title,
     description,
+    alternates: { canonical: canonicalPath },
     openGraph: {
       title: obj.title,
       description,
-      images: obj.photos[0] ? [{ url: obj.photos[0].original }] : [],
+      type: 'article',
+      locale: 'ru_RU',
+      siteName: 'Память Тюмени',
+      url: canonicalPath,
+      images,
+    },
+    twitter: {
+      card: images.length ? 'summary_large_image' : 'summary',
+      title: obj.title,
+      description,
+      images,
     },
   }
 }
@@ -79,8 +109,43 @@ export default async function ObjectPage({ params }: Params) {
   const obj = await getObject(id)
   if (!obj) notFound()
 
+  const pageUrl = absoluteSiteUrl(`/object/${obj.id}`)
+  const mapUrl = absoluteSiteUrl(`/?object=${obj.id}`)
+  const description = obj.description?.trim()
+    || `${obj.category_title} в Тюмени${obj.address ? ` по адресу ${obj.address}` : ''}.`
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TouristAttraction',
+    '@id': `${pageUrl}#attraction`,
+    identifier: obj.id,
+    name: obj.title,
+    description,
+    url: pageUrl,
+    mainEntityOfPage: pageUrl,
+    hasMap: mapUrl,
+    touristType: obj.category_title,
+    image: obj.photos.map((photo) => absoluteSiteUrl(photo.original)),
+    address: {
+      '@type': 'PostalAddress',
+      ...(obj.address ? { streetAddress: obj.address } : {}),
+      addressLocality: 'Тюмень',
+      addressRegion: 'Тюменская область',
+      addressCountry: 'RU',
+    },
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: obj.lat,
+      longitude: obj.lng,
+    },
+  }
+
   return (
-    <main className="object-page mx-auto max-w-2xl px-4 py-8">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
+      />
+      <main className="object-page mx-auto max-w-2xl px-4 py-8">
       <Link
         href={`/?object=${obj.id}`}
         className="text-[15px] font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
@@ -99,12 +164,13 @@ export default async function ObjectPage({ params }: Params) {
 
       <h1 className="mt-2 text-[28px] font-[650] leading-[1.2] tracking-[-0.012em] md:text-[32px]">{obj.title}</h1>
 
-      {obj.address && (
-        <p className="mt-2 text-[15px] leading-[1.55] text-[var(--ink-muted)]">
-          {obj.address}
-          {obj.district_name ? ` · ${obj.district_name} округ` : ''}
-        </p>
-      )}
+        {(obj.address || obj.district_name) && (
+          <p className="mt-2 text-[15px] leading-[1.55] text-[var(--ink-muted)]">
+            {obj.address}
+            {obj.address && obj.district_name ? ' · ' : ''}
+            {obj.district_name ? `${obj.district_name} округ` : ''}
+          </p>
+        )}
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--hairline)]">
         <ObjectMediaGallery
@@ -116,19 +182,52 @@ export default async function ObjectPage({ params }: Params) {
         />
       </div>
 
+      {obj.events.length > 0 && (
+        <section className="mt-6" aria-labelledby="object-events">
+          <h2 id="object-events" className="text-xl font-semibold">Мероприятия</h2>
+          <div className="mt-3 space-y-3">
+            {obj.events.map((event) => {
+              const time = formatEventTime(event.startsAt, event.endsAt)
+              return (
+                <article key={event.id} className="rounded-xl border border-[var(--hairline)] bg-white/[0.03] p-4">
+                  <p className="text-[13px] font-semibold text-[var(--accent)]">
+                    {formatEventDates(event.startsOn, event.endsOn)}{time ? ` · ${time}` : ''}
+                  </p>
+                  <h3 className="mt-1.5 text-[17px] font-semibold">{event.title}</h3>
+                  {event.status !== 'scheduled' && (
+                    <p className={`mt-1 text-sm font-semibold ${event.status === 'cancelled' ? 'text-red-300' : 'text-amber-300'}`}>
+                      {event.status === 'cancelled' ? 'Отменено' : 'Перенесено'}
+                    </p>
+                  )}
+                  {event.venue && <p className="mt-1 text-sm text-[var(--ink-muted)]">{event.venue}</p>}
+                  <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold">
+                    <Link href={`/event/${event.id}`} className="text-[var(--accent)] hover:underline">Подробнее</Link>
+                    <a href={`/api/events/${event.id}/calendar`} className="text-[var(--ink-muted)] hover:text-[var(--ink)]">В календарь</a>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
       <div className="mt-5 space-y-4">
         <AudioGuide audioUrl={obj.audio_url} audioText={obj.audio_text} />
         <ObjectSections objectId={obj.id} description={obj.description} sections={obj.sections} />
       </div>
 
-      <a
-        href={`https://yandex.ru/maps/?rtext=~${obj.lat},${obj.lng}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn-accent mt-7 px-5 py-3 text-sm"
-      >
-        Маршрут в Яндекс.Картах →
-      </a>
-    </main>
+      <div className="mt-7 flex flex-wrap gap-3">
+        <a
+          href={`https://yandex.ru/maps/?rtext=~${obj.lat},${obj.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-accent px-5 py-3 text-sm"
+        >
+          Маршрут в Яндекс.Картах →
+        </a>
+        <ShareButton title={obj.title} />
+      </div>
+      </main>
+    </>
   )
 }

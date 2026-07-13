@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { formatAudioTime, readAudioProgress, writeAudioProgress } from '@/lib/audio-progress'
 
 interface Props {
   audioUrl: string | null
@@ -12,7 +13,38 @@ export default function AudioGuide({ audioUrl, audioText }: Props) {
   const [playerOpen, setPlayerOpen] = useState(false)
   const [textOpen, setTextOpen] = useState(false)
   const [audioError, setAudioError] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [playbackRate, setPlaybackRate] = useState(1)
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const lastSavedSecond = useRef(0)
   const baseId = useId()
+
+  useEffect(() => {
+    setCurrentTime(0)
+    setDuration(0)
+    setPlaybackRate(1)
+    lastSavedSecond.current = 0
+  }, [audioUrl])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (playerOpen && audio) audio.playbackRate = playbackRate
+  }, [audioUrl, playbackRate, playerOpen])
+
+  function skip(seconds: number) {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.currentTime = Math.max(0, Math.min(audio.duration || Infinity, audio.currentTime + seconds))
+    setCurrentTime(audio.currentTime)
+  }
+
+  function changeRate() {
+    const rates = [0.75, 1, 1.25, 1.5]
+    const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length] ?? 1
+    setPlaybackRate(next)
+    if (audioRef.current) audioRef.current.playbackRate = next
+  }
 
   if (!audioUrl && !audioText) return null
 
@@ -49,12 +81,50 @@ export default function AudioGuide({ audioUrl, audioText }: Props) {
       {playerOpen && audioUrl && (
         <div id={`${baseId}-player`} className="mt-3 border-t border-white/[0.07] pt-3">
           <audio
+            ref={audioRef}
             src={audioUrl}
             controls
             preload="metadata"
             onError={() => setAudioError(true)}
+            onLoadedMetadata={(event) => {
+              const audio = event.currentTarget
+              audio.playbackRate = playbackRate
+              setDuration(audio.duration)
+              const saved = readAudioProgress(window.localStorage, audioUrl)
+              if (saved !== null && saved < audio.duration - 3) {
+                audio.currentTime = saved
+                setCurrentTime(saved)
+              }
+            }}
+            onTimeUpdate={(event) => {
+              const value = event.currentTarget.currentTime
+              setCurrentTime(value)
+              if (Math.abs(value - lastSavedSecond.current) >= 5) {
+                writeAudioProgress(window.localStorage, audioUrl, value)
+                lastSavedSecond.current = value
+              }
+            }}
+            onPause={(event) => writeAudioProgress(window.localStorage, audioUrl, event.currentTarget.currentTime)}
+            onEnded={() => {
+              writeAudioProgress(window.localStorage, audioUrl, 0)
+              setCurrentTime(0)
+            }}
             className="h-10 w-full"
           />
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--ink-muted)]">
+            <span aria-live="off">{formatAudioTime(currentTime)} / {formatAudioTime(duration)}</span>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => skip(-15)} className="min-h-9 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label="Назад на 15 секунд">
+                −15 сек
+              </button>
+              <button type="button" onClick={changeRate} className="min-h-9 min-w-12 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label={`Скорость воспроизведения ${playbackRate}`}>
+                {playbackRate}×
+              </button>
+              <button type="button" onClick={() => skip(15)} className="min-h-9 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label="Вперёд на 15 секунд">
+                +15 сек
+              </button>
+            </div>
+          </div>
           {audioError && <p className="mt-2 text-xs text-red-300" role="status">Не удалось загрузить аудиофайл.</p>}
         </div>
       )}

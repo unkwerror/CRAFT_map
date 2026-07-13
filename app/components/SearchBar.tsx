@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import type { CSSProperties } from 'react'
-import { rankSearchMatch } from '@/lib/map-search'
+import { rankSearchMatch } from '../lib/map-search'
 import type { CategoryDto, ObjectFeatureProps } from '@/lib/types'
 
 interface DistrictOption {
@@ -21,9 +21,12 @@ interface Props {
   categories: CategoryDto[]
   districts: DistrictOption[]
   loading: boolean
+  query: string
+  onQueryChange: (query: string) => void
   onPickObject: (id: string) => void
   onPickCategory: (id: string) => void
   onPickDistrict: (id: number) => void
+  onShowAllObjects: (ids: string[], query: string) => void
   onPreviewObject: (id: string | null) => void
 }
 
@@ -50,12 +53,43 @@ interface RankedSuggestion extends Suggestion {
   rank: number
 }
 
-interface RecentItem {
+export interface RecentItem {
   kind: SuggestionKind
   id: string
 }
 
 const RECENT_SEARCH_KEY = 'craft-map-recent-searches'
+const MAX_RECENT_SEARCHES = 5
+
+/** Безопасно читает локальную историю, отбрасывая повреждённые и повторные записи. */
+export function parseRecentSearches(raw: string | null): RecentItem[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    const result: RecentItem[] = []
+    const seen = new Set<string>()
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const value = item as Partial<RecentItem>
+      if (
+        (value.kind !== 'object' && value.kind !== 'category' && value.kind !== 'district') ||
+        typeof value.id !== 'string' ||
+        !value.id
+      ) {
+        continue
+      }
+      const key = `${value.kind}:${value.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      result.push({ kind: value.kind, id: value.id })
+      if (result.length === MAX_RECENT_SEARCHES) break
+    }
+    return result
+  } catch {
+    return []
+  }
+}
 
 function placeWord(count: number): string {
   const mod100 = count % 100
@@ -103,12 +137,14 @@ export default function SearchBar({
   categories,
   districts,
   loading,
+  query,
+  onQueryChange,
   onPickObject,
   onPickCategory,
   onPickDistrict,
+  onShowAllObjects,
   onPreviewObject,
 }: Props) {
-  const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const [recent, setRecent] = useState<RecentItem[]>([])
@@ -210,7 +246,7 @@ export default function SearchBar({
 
   const search = useMemo(() => {
     if (query.trim().length < 2) {
-      return { suggestions: [] as RankedSuggestion[], objectMatchCount: 0 }
+      return { suggestions: [] as RankedSuggestion[], objectMatchCount: 0, objectMatchIds: [] as string[] }
     }
     const ranked = entries
       .map((entry) => {
@@ -234,6 +270,7 @@ export default function SearchBar({
         ? [...filterResults, ...objectResults]
         : [...objectResults, ...filterResults],
       objectMatchCount: objectsFound.length,
+      objectMatchIds: objectsFound.map((entry) => entry.id),
     }
   }, [query, entries])
 
@@ -250,23 +287,10 @@ export default function SearchBar({
 
   useEffect(() => {
     try {
-      const parsed = JSON.parse(window.localStorage.getItem(RECENT_SEARCH_KEY) ?? '[]') as unknown
-      if (Array.isArray(parsed)) {
-        setRecent(
-          parsed
-            .filter((item): item is RecentItem => {
-              if (!item || typeof item !== 'object') return false
-              const value = item as Partial<RecentItem>
-              return (
-                (value.kind === 'object' || value.kind === 'category' || value.kind === 'district') &&
-                typeof value.id === 'string'
-              )
-            })
-            .slice(0, 5)
-        )
-      }
+      setRecent(parseRecentSearches(window.localStorage.getItem(RECENT_SEARCH_KEY)))
     } catch {
-      // Повреждённая история не должна ломать поиск.
+      // Блокировка хранилища не должна ломать поиск.
+      setRecent([])
     }
   }, [])
 
@@ -318,7 +342,7 @@ export default function SearchBar({
       const next = [
         { kind: suggestion.kind, id: suggestion.id },
         ...current.filter((item) => !(item.kind === suggestion.kind && item.id === suggestion.id)),
-      ].slice(0, 5)
+      ].slice(0, MAX_RECENT_SEARCHES)
       try {
         window.localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(next))
       } catch {
@@ -328,25 +352,25 @@ export default function SearchBar({
     })
   }
 
+  const clearRecent = () => {
+    setRecent([])
+    try {
+      window.localStorage.removeItem(RECENT_SEARCH_KEY)
+    } catch {
+      // История уже очищена в состоянии; запрет хранилища не ломает поиск.
+    }
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
   const pick = (suggestion: Suggestion) => {
     remember(suggestion)
     suggestion.pick()
-    setQuery(suggestion.kind === 'object' ? suggestion.label : '')
+    onQueryChange(suggestion.kind === 'object' ? suggestion.label : '')
     setOpen(false)
     onPreviewObject(null)
   }
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      setOpen(false)
-      onPreviewObject(null)
-      return
-    }
-    if (event.key === 'Tab') {
-      setOpen(false)
-      onPreviewObject(null)
-      return
-    }
     if (!open || !search.suggestions.length) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
@@ -418,7 +442,27 @@ export default function SearchBar({
       ]
 
   return (
-    <div ref={rootRef} className="relative">
+    <div
+      ref={rootRef}
+      className="relative"
+      onBlurCapture={(event) => {
+        const nextTarget = event.relatedTarget
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return
+        window.requestAnimationFrame(() => {
+          if (rootRef.current?.contains(document.activeElement)) return
+          setOpen(false)
+          onPreviewObject(null)
+        })
+      }}
+      onKeyDownCapture={(event) => {
+        if (event.key !== 'Escape' || !open) return
+        event.preventDefault()
+        event.stopPropagation()
+        setOpen(false)
+        onPreviewObject(null)
+        inputRef.current?.focus()
+      }}
+    >
       <div className={`search-surface panel flex h-14 items-center gap-3 rounded-2xl px-4 ${open ? 'search-surface--open' : ''}`}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-[var(--ink-subtle)]">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
@@ -429,7 +473,7 @@ export default function SearchBar({
           type="search"
           value={query}
           onChange={(event) => {
-            setQuery(event.target.value)
+            onQueryChange(event.target.value)
             setOpen(true)
           }}
           onFocus={() => setOpen(true)}
@@ -437,10 +481,10 @@ export default function SearchBar({
           placeholder="Название, адрес, категория или округ…"
           aria-label="Поиск по карте"
           role="combobox"
-          aria-expanded={listboxOpen}
-          aria-controls={listboxOpen ? panelId : undefined}
+          aria-expanded={open}
+          aria-controls={open ? panelId : undefined}
           aria-autocomplete="list"
-          aria-activedescendant={open && search.suggestions[active] ? `${panelId}-option-${active}` : undefined}
+          aria-activedescendant={listboxOpen && search.suggestions[active] ? `${panelId}-option-${active}` : undefined}
           autoComplete="off"
           className="w-full bg-transparent text-[15px] font-medium text-[var(--ink)] outline-none placeholder:font-normal placeholder:text-[var(--ink-subtle)] [&::-webkit-search-cancel-button]:hidden"
         />
@@ -449,9 +493,10 @@ export default function SearchBar({
           <button
             type="button"
             onClick={() => {
-              setQuery('')
+              onQueryChange('')
               setOpen(true)
               onPreviewObject(null)
+              window.requestAnimationFrame(() => inputRef.current?.focus())
             }}
             aria-label="Очистить поиск"
             className="search-clear flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--ink-subtle)]"
@@ -485,7 +530,16 @@ export default function SearchBar({
 
               {recentEntries.length > 0 && (
                 <section className="border-t border-white/[0.07] py-3">
-                  <p className="search-group-title px-1">Недавнее</p>
+                  <div className="flex min-h-10 items-center justify-between gap-3 px-1">
+                    <p className="search-group-title">Недавнее</p>
+                    <button
+                      type="button"
+                      onClick={clearRecent}
+                      className="min-h-10 rounded-lg px-2 text-[12px] font-semibold text-[var(--ink-muted)] hover:bg-white/[0.05] hover:text-[var(--ink)]"
+                    >
+                      Очистить
+                    </button>
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {recentEntries.slice(0, 4).map((suggestion) => (
                       <button key={suggestion.key} type="button" onClick={() => pick(suggestion)} className="search-quick-chip">
@@ -573,7 +627,7 @@ export default function SearchBar({
           {normalizedLength >= 2 && search.suggestions.length > 0 && resultGroups.map((group) => {
             if (!group.items.length) return null
             return (
-              <section key={group.label} className="search-group py-1">
+              <section key={group.label} role="group" aria-label={group.label} className="search-group py-1">
                 <div className="search-group-title flex items-center justify-between px-3 pb-1 pt-1.5">
                   <span>{group.label}</span>
                   {group.label === 'Места' && search.objectMatchCount > 0 && (
@@ -581,6 +635,21 @@ export default function SearchBar({
                   )}
                 </div>
                 {group.items.map((suggestion) => renderResult(suggestion, search.suggestions.indexOf(suggestion)))}
+                {group.label === 'Места' && search.objectMatchCount > group.items.length && (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected="false"
+                    onClick={() => {
+                      onShowAllObjects(search.objectMatchIds, query.trim())
+                      setOpen(false)
+                      onPreviewObject(null)
+                    }}
+                    className="mx-1.5 my-1 flex min-h-11 w-[calc(100%-0.75rem)] items-center justify-center rounded-xl border border-[var(--hairline-strong)] px-3 text-[13px] font-semibold text-[var(--accent)] hover:bg-white/[0.05]"
+                  >
+                    Показать все {search.objectMatchCount} в списке
+                  </button>
+                )}
               </section>
             )
           })}

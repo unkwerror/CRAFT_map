@@ -58,6 +58,16 @@ export const events = pgTable('events', {
   description: text('description'),
   startsOn: text('starts_on').notNull(), // date, читаем/пишем строкой YYYY-MM-DD
   endsOn: text('ends_on').notNull(),
+  startsAt: text('starts_at'), // time, читаем/пишем строкой HH:MM
+  endsAt: text('ends_at'),
+  timezone: text('timezone').notNull().default('Asia/Yekaterinburg'),
+  venue: text('venue'),
+  organizer: text('organizer'),
+  priceInfo: text('price_info'),
+  registrationUrl: text('registration_url'),
+  accessibility: text('accessibility'),
+  status: text('status').notNull().default('scheduled'),
+  published: boolean('published').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

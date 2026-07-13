@@ -9,6 +9,8 @@ export interface Video {
   /** превью-кадр (постер), опционально */
   poster?: string
   alt?: string
+  /** WebVTT-субтитры для доступного просмотра */
+  captions?: string
 }
 
 /** Секция описания («Архитектура», «История», …) — структура расширяемая */
@@ -16,6 +18,8 @@ export interface DescriptionSection {
   title: string
   text: string
 }
+
+export type EventStatus = 'scheduled' | 'postponed' | 'cancelled'
 
 /** Мероприятие у памятника (вводится администратором вручную) */
 export interface EventDto {
@@ -25,6 +29,16 @@ export interface EventDto {
   /** YYYY-MM-DD */
   startsOn: string
   endsOn: string
+  /** HH:MM, локальное время события */
+  startsAt: string | null
+  endsAt: string | null
+  timezone: string
+  venue: string | null
+  organizer: string | null
+  priceInfo: string | null
+  registrationUrl: string | null
+  accessibility: string | null
+  status: EventStatus
   /** идёт сегодня (по тюменскому времени, считает сервер) */
   isToday: boolean
 }
@@ -106,6 +120,16 @@ export interface AdminEventRow {
   description: string | null
   startsOn: string
   endsOn: string
+  startsAt: string | null
+  endsAt: string | null
+  timezone: string
+  venue: string | null
+  organizer: string | null
+  priceInfo: string | null
+  registrationUrl: string | null
+  accessibility: string | null
+  status: EventStatus
+  published: boolean
 }
 
 export interface AdminObjectRow {
@@ -152,4 +176,18 @@ export interface UserRow {
   id: string
   email: string
   role: 'admin' | 'editor'
+}
+
+export type ReportStatus = 'new' | 'resolved' | 'rejected'
+
+export interface ContentReportRow {
+  id: string
+  objectId: string | null
+  objectTitle: string
+  message: string
+  contact: string | null
+  status: ReportStatus
+  resolvedAt: string | null
+  createdAt: string
+  updatedAt: string
 }

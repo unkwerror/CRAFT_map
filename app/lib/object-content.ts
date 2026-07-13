@@ -35,7 +35,13 @@ export function normalizeVideos(value: unknown): Video[] {
     if (!src) return []
     const poster = optionalText(candidate?.poster)
     const alt = optionalText(candidate?.alt)
-    return [{ src, ...(poster ? { poster } : {}), ...(alt ? { alt } : {}) }]
+    const captions = optionalText(candidate?.captions)
+    return [{
+      src,
+      ...(poster ? { poster } : {}),
+      ...(alt ? { alt } : {}),
+      ...(captions ? { captions } : {}),
+    }]
   })
 }
 

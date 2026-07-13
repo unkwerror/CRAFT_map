@@ -6,6 +6,8 @@ import type { EventDto, ObjectFull } from '@/lib/types'
 import AudioGuide from './AudioGuide'
 import ObjectMediaGallery from './ObjectMediaGallery'
 import ObjectSections from './ObjectSections'
+import ReportIssue from './ReportIssue'
+import usePlaceProgress from './usePlaceProgress'
 
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL
 
@@ -21,26 +23,28 @@ function formatDate(iso: string): string {
 }
 
 function eventDates(e: EventDto): string {
-  return e.startsOn === e.endsOn
+  const dates = e.startsOn === e.endsOn
     ? formatDate(e.startsOn)
     : `${formatDate(e.startsOn)} — ${formatDate(e.endsOn)}`
+  const time = e.startsAt ? `${e.startsAt}${e.endsAt ? `–${e.endsAt}` : ''}` : ''
+  return time ? `${dates}, ${time}` : dates
 }
 
-/** Звёзды рейтинга (источник рейтинга пока не решён — значение задаётся в админке) */
-function Stars({ rating }: { rating: number }) {
+function EventLinks({ event }: { event: EventDto }) {
   return (
-    <span className="flex items-center gap-1.5 text-sm" aria-label={`Рейтинг ${rating} из 5`}>
-      <span className="relative inline-block leading-none text-white/25" aria-hidden>
-        ★★★★★
-        <span
-          className="absolute inset-0 overflow-hidden whitespace-nowrap text-[var(--accent)]"
-          style={{ width: `${(rating / 5) * 100}%` }}
-        >
-          ★★★★★
-        </span>
-      </span>
-      <span className="font-medium text-[var(--ink)]/90">{rating.toFixed(1)}</span>
-    </span>
+    <div className="mt-2 flex flex-wrap gap-2 text-[13px] font-semibold">
+      <a href={`/event/${event.id}`} className="text-[var(--accent)] hover:underline">
+        Подробнее
+      </a>
+      <a href={`/api/events/${event.id}/calendar`} className="text-[var(--ink-muted)] hover:text-[var(--ink)]">
+        В календарь
+      </a>
+      {event.registrationUrl && event.status !== 'cancelled' && (
+        <a href={event.registrationUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+          Регистрация ↗
+        </a>
+      )}
+    </div>
   )
 }
 
@@ -56,15 +60,20 @@ export default function ObjectCard({ id, onClose }: Props) {
   const panelRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
   const titleId = useId()
+  const { favoriteIds, visitedIds, toggleFavorite, toggleVisited } = usePlaceProgress()
+  const favorite = favoriteIds.has(id)
+  const visited = visitedIds.has(id)
   onCloseRef.current = onClose
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 12_000)
     setData(null)
     setError(false)
     setEventsOpen(false)
     setShareState('idle')
-    fetch(`/api/objects/${id}`)
+    fetch(`/api/objects/${id}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: ObjectFull) => {
         if (!cancelled) setData(d)
@@ -72,8 +81,11 @@ export default function ObjectCard({ id, onClose }: Props) {
       .catch(() => {
         if (!cancelled) setError(true)
       })
+      .finally(() => window.clearTimeout(timeout))
     return () => {
       cancelled = true
+      window.clearTimeout(timeout)
+      controller.abort()
     }
   }, [id, requestKey])
 
@@ -122,7 +134,9 @@ export default function ObjectCard({ id, onClose }: Props) {
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Escape' && !document.querySelector('[data-media-lightbox]')) {
+        onCloseRef.current()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     panelRef.current?.focus({ preventScroll: true })
@@ -278,7 +292,6 @@ export default function ObjectCard({ id, onClose }: Props) {
 
             <div className="space-y-2">
               <h2 id={titleId} className="text-[23px] font-[650] leading-[1.22] tracking-[-0.012em] md:text-[26px]">{data.title}</h2>
-              {data.rating !== null && <Stars rating={data.rating} />}
               {(data.address || data.districtName) && (
                 <p className="flex items-start gap-1.5 text-[15px] leading-[1.55] text-[var(--ink-muted)]">
                   <svg className="mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -292,6 +305,27 @@ export default function ObjectCard({ id, onClose }: Props) {
                   </span>
                 </p>
               )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Личные отметки места">
+              <button
+                type="button"
+                onClick={() => toggleFavorite(data.id)}
+                aria-pressed={favorite}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-[13px] font-semibold transition-colors ${favorite ? 'border-[var(--accent)]/45 bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--hairline)] bg-white/[0.025] text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}
+              >
+                <span aria-hidden>{favorite ? '♥' : '♡'}</span>
+                {favorite ? 'В избранном' : 'В избранное'}
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleVisited(data.id)}
+                aria-pressed={visited}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-[13px] font-semibold transition-colors ${visited ? 'border-emerald-300/35 bg-emerald-300/10 text-emerald-200' : 'border-[var(--hairline)] bg-white/[0.025] text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}
+              >
+                <span aria-hidden>✓</span>
+                {visited ? 'Посещено' : 'Отметить'}
+              </button>
             </div>
 
             {/* Мероприятия: сегодняшние выделены */}
@@ -311,9 +345,16 @@ export default function ObjectCard({ id, onClose }: Props) {
                       Сегодня · {eventDates(e)}
                     </p>
                     <p className="mt-1.5 text-[15px] font-medium leading-[1.4]">{e.title}</p>
+                    {e.status !== 'scheduled' && (
+                      <p className={`mt-1 text-[13px] font-semibold ${e.status === 'cancelled' ? 'text-red-300' : 'text-amber-300'}`}>
+                        {e.status === 'cancelled' ? 'Мероприятие отменено' : 'Мероприятие перенесено — уточните дату'}
+                      </p>
+                    )}
+                    {e.venue && <p className="mt-1 text-[13px] text-[var(--ink-muted)]">{e.venue}</p>}
                     {e.description && (
                       <p className="mt-1 whitespace-pre-line text-[15px] leading-[1.6] text-[var(--ink)]/88">{e.description}</p>
                     )}
+                    <EventLinks event={e} />
                   </div>
                 ))}
                 {shownUpcomingEvents.map((e) => (
@@ -323,9 +364,16 @@ export default function ObjectCard({ id, onClose }: Props) {
                       {eventDates(e)}
                     </p>
                     <p className="mt-1.5 text-[15px] font-medium leading-[1.4]">{e.title}</p>
+                    {e.status !== 'scheduled' && (
+                      <p className={`mt-1 text-[13px] font-semibold ${e.status === 'cancelled' ? 'text-red-300' : 'text-amber-300'}`}>
+                        {e.status === 'cancelled' ? 'Мероприятие отменено' : 'Мероприятие перенесено — уточните дату'}
+                      </p>
+                    )}
+                    {e.venue && <p className="mt-1 text-[13px] text-[var(--ink-muted)]">{e.venue}</p>}
                     {e.description && (
                       <p className="mt-1 whitespace-pre-line text-[15px] leading-[1.6] text-[var(--ink)]/88">{e.description}</p>
                     )}
+                    <EventLinks event={e} />
                   </div>
                 ))}
                 {upcomingEvents.length > 2 && (
@@ -356,6 +404,8 @@ export default function ObjectCard({ id, onClose }: Props) {
                 Поддержать реставрацию
               </a>
             )}
+
+            <ReportIssue objectId={data.id} title={data.title} />
 
             <div className="object-actions sticky bottom-0 z-[1] -mx-4 -mb-5 mt-auto grid grid-cols-[1fr_auto] gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 md:-mx-6 md:-mb-6 md:px-6 md:pb-6 md:pt-5">
               <a

@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:prod": "PLAYWRIGHT_BASE_URL=https://xn--80ayho4cq.site playwright test",
     "check": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
@@ -29,6 +31,7 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^22.15.0",

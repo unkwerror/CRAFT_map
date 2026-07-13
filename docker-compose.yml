@@ -15,6 +15,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Порт 5432 наружу НЕ пробрасывается — только внутренняя docker-сеть
 
   app:
@@ -37,6 +42,7 @@ services:
       YANDEX_SPEECHKIT_API_KEY: ${YANDEX_SPEECHKIT_API_KEY:-}
       YANDEX_SPEECHKIT_API_KEY_ID: ${YANDEX_SPEECHKIT_API_KEY_ID:-}
       UPLOADS_DIR: /data/uploads
+      UPLOAD_CLEANUP_GRACE_HOURS: ${UPLOAD_CLEANUP_GRACE_HOURS:-24}
       NODE_ENV: production
     volumes:
       - uploads:/data/uploads
@@ -46,11 +52,16 @@ services:
     expose:
       - "3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/categories"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   nginx:
     image: nginx:1.27-alpine
@@ -62,11 +73,30 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./tiles/data:/var/www/tiles:ro
       - uploads:/var/www/uploads:ro
-      - certbot_www:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
     depends_on:
       app:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One-shot maintenance service; запускается только через профиль maintenance.
+  certbot:
+    image: certbot/certbot:v5.7.0
+    profiles: ["maintenance"]
+    restart: "no"
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:

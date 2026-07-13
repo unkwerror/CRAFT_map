@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, open, rename, unlink } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
@@ -10,15 +10,18 @@ export const dynamic = 'force-dynamic'
 const LIMITS = {
   video: 100 * 1024 * 1024,
   audio: 30 * 1024 * 1024,
+  captions: 1024 * 1024,
 } as const
 
 const EXTENSIONS: Record<keyof typeof LIMITS, string[]> = {
   video: ['.mp4', '.webm'],
   audio: ['.mp3', '.m4a', '.ogg', '.wav'],
+  captions: ['.vtt'],
 }
 
 /** Лёгкая проверка сигнатуры, чтобы не принять произвольный файл под видео-расширением */
 function looksLikeMedia(buf: Buffer, ext: string): boolean {
+  if (ext === '.vtt') return buf.toString('utf8', 0, Math.min(buf.length, 128)).replace(/^\uFEFF/, '').startsWith('WEBVTT')
   if (buf.length < 12) return false
   switch (ext) {
     case '.mp4':
@@ -37,7 +40,7 @@ function looksLikeMedia(buf: Buffer, ext: string): boolean {
   }
 }
 
-/** Загрузка видео (mp4/webm, ≤100 МБ) и аудио аудиогида (mp3/m4a/ogg/wav, ≤30 МБ).
+/** Загрузка видео (mp4/webm, ≤100 МБ), аудио (≤30 МБ) и WebVTT-субтитров (≤1 МБ).
  *  Без транскодинга: файл сохраняется как есть и отдаётся nginx/раздачей uploads. */
 export async function POST(req: NextRequest) {
   const guard = await requireRole('editor')
@@ -51,8 +54,8 @@ export async function POST(req: NextRequest) {
   const form = await req.formData().catch(() => null)
   const file = form?.get('file')
   const kind = form?.get('kind')
-  if (kind !== 'video' && kind !== 'audio') {
-    return NextResponse.json({ error: 'Не указан тип файла (video/audio)' }, { status: 400 })
+  if (kind !== 'video' && kind !== 'audio' && kind !== 'captions') {
+    return NextResponse.json({ error: 'Не указан тип файла (video/audio/captions)' }, { status: 400 })
   }
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Файл не передан' }, { status: 400 })
@@ -72,14 +75,33 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const buf = Buffer.from(await file.arrayBuffer())
-  if (!looksLikeMedia(buf, ext)) {
+  const header = Buffer.from(await file.slice(0, 256).arrayBuffer())
+  if (!looksLikeMedia(header, ext)) {
     return NextResponse.json({ error: 'Файл повреждён или формат не соответствует расширению' }, { status: 400 })
   }
 
   const id = randomUUID()
   await mkdir(UPLOADS_DIR, { recursive: true })
-  await writeFile(join(UPLOADS_DIR, `${id}${ext}`), buf)
+  const target = join(UPLOADS_DIR, `${id}${ext}`)
+  const temporary = `${target}.part`
+  const handle = await open(temporary, 'wx', 0o600)
+  try {
+    const reader = file.stream().getReader()
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      await handle.write(chunk.value)
+    }
+    await handle.sync()
+    await handle.close()
+    // Временный файл закрыт для nginx, а публичное имя появляется уже с правами на чтение.
+    await chmod(temporary, 0o644)
+    await rename(temporary, target)
+  } catch (error) {
+    await handle.close().catch(() => undefined)
+    await unlink(temporary).catch(() => undefined)
+    throw error
+  }
 
   return NextResponse.json({ url: `/uploads/${id}${ext}` })
 }

@@ -1,20 +1,25 @@
 # Интерактивная карта памятных объектов Тюмени (КРАФТ)
 
-Веб-приложение: карта Тюмени с памятниками и значимыми точками четырёх категорий
-(патриотизм, историческая память, достоинство, преемственность поколений).
-Полностью self-hosted: Next.js + MapLibre GL + PostgreSQL/PostGIS + PMTiles, без внешних SaaS.
+Карта Тюмени с памятниками и значимыми точками четырёх категорий: патриотизм,
+историческая память, достоинство и преемственность поколений.
 
-Подробное ТЗ и решения — в `CLAUDE.md`.
+Приложение работает на Next.js, MapLibre GL и PostgreSQL/PostGIS. Карта, данные,
+PMTiles и пользовательские медиа в production self-hosted. Yandex SpeechKit —
+необязательная внешняя интеграция только для генерации текста в админке; её ключ
+хранится исключительно в серверном `.env`.
+
+Подробное ТЗ и архитектурные решения — в `CLAUDE.md`.
 
 ## Структура
 
-```
-/app            — Next.js (публичная карта + /admin + API)
-/db             — миграции, seed, импорт GeoJSON из QGIS, backup.sh
-/tiles          — README по сборке PMTiles-вырезки и глифов; data/ — сами файлы (не в git)
-/nginx          — конфиг reverse-proxy
-docker-compose.yml       — прод (db + app + nginx)
-docker-compose.dev.yml   — dev (только PostGIS)
+```text
+/app            — Next.js: публичная карта, /admin и API
+/db             — миграции, seed, импорт GeoJSON, backup.sh
+/nginx          — reverse proxy, HTTPS и раздача статических данных
+/scripts        — безопасные host-операции, включая renew сертификатов
+/tiles          — инструкция по PMTiles/глифам; data/ не хранится в git
+docker-compose.yml       — production: db, app, nginx и maintenance-профиль
+docker-compose.dev.yml   — development: только PostGIS
 ```
 
 ## Разработка
@@ -23,88 +28,206 @@ docker-compose.dev.yml   — dev (только PostGIS)
 # 1. Поднять PostGIS
 docker compose -f docker-compose.dev.yml up -d
 
-# 2. Миграции + сид (категории, админ)
-cd db && npm install
-ADMIN_EMAIL=admin@example.ru ADMIN_PASSWORD=admin12345 npm run migrate && \
+# 2. Применить миграции и создать первого администратора
+cd db
+npm install
+ADMIN_EMAIL=admin@example.ru ADMIN_PASSWORD=admin12345 npm run migrate
 ADMIN_EMAIL=admin@example.ru ADMIN_PASSWORD=admin12345 npm run seed
 
-# 3. Тестовые данные (округа + ~12 объектов)
+# 3. При необходимости загрузить тестовые данные
 npm run import -- districts import/samples/districts.geojson
 npm run import -- objects import/samples/objects.geojson
 
-# 4. Приложение
-cd ../app && npm install
+# 4. Запустить приложение
+cd ../app
+npm install
 cp .env.local.example .env.local
-npm run dev   # http://localhost:3000, админка /admin
+npm run dev
 ```
 
-Без файла `tiles/data/tyumen.pmtiles` карта работает на временной растровой
-подложке OSM (только dev). Сборка полноценной подложки и глифов — `tiles/README.md`.
+Приложение будет доступно на <http://localhost:3000>, админка — на
+<http://localhost:3000/admin>. Без `tiles/data/tyumen.pmtiles` в development
+используется временная растровая подложка OSM. Подготовка production-подложки и
+глифов описана в `tiles/README.md`.
 
-## Прод (VPS, Docker Compose)
+## Production
+
+### Первичная установка
 
 ```bash
-git clone <repo> /opt/CRAFT_map && cd /opt/CRAFT_map
-cp .env.example .env && nano .env      # пароли, AUTH_SECRET, домен, админ
-
-# Подложка и глифы (см. tiles/README.md) → tiles/data/
-
-# Домен в nginx/conf.d/craft.conf (замените example.ru).
-# Если сертификата ещё нет — временно закомментируйте блок `server { listen 443 … }`.
-docker compose up -d --build
-
-# Выпуск сертификата (webroot уже настроен):
-docker run --rm -v craft_map_certbot_www:/var/www/certbot \
-  -v craft_map_certbot_conf:/etc/letsencrypt certbot/certbot certonly \
-  --webroot -w /var/www/certbot -d example.ru --email admin@example.ru --agree-tos
-# вернуть блок 443 и перезапустить nginx:
-docker compose restart nginx
-
-# Данные:
-docker compose exec app node /srv/db/import/import.mjs districts /srv/db/import/samples/districts.geojson
+git clone REPOSITORY_URL /opt/CRAFT_map
+cd /opt/CRAFT_map
+cp .env.example .env
+nano .env
 ```
 
-Миграции и сид выполняются автоматически при старте контейнера `app`.
+В `.env` обязательно замените пароли, `AUTH_SECRET`, `AUTH_URL` и данные
+администратора. SpeechKit-переменные необязательны. Файл `.env` и содержимое
+`tiles/data/` не должны попадать в git.
 
-### Бэкапы
+Nginx-конфигурация репозитория настроена для `xn--80ayho4cq.site` и
+`www.xn--80ayho4cq.site`. Для другого домена замените оба `server_name`, пути
+сертификата и `AUTH_URL`; оба DNS-имени должны указывать на сервер.
 
-`db/backup.sh` — pg_dump + архив загрузок, проверка архивов, очистка неиспользуемых
-медиа старше суток и хранение 14 дней. Крон на хосте:
+Если сертификата ещё нет, временно отключите HTTPS server block по комментарию в
+`nginx/conf.d/craft.conf`, поднимите HTTP-конфигурацию и выпустите сертификат в
+тех же Compose volumes:
 
+```bash
+docker compose up -d db app nginx
+docker compose --profile maintenance run --rm --no-deps certbot \
+  certonly --non-interactive --webroot --webroot-path /var/www/certbot \
+  -d xn--80ayho4cq.site -d www.xn--80ayho4cq.site \
+  --email admin@example.ru --agree-tos --no-eff-email
 ```
-30 3 * * * cd /opt/CRAFT_map && ./db/backup.sh >> /var/log/craft-backup.log 2>&1
+
+После выпуска верните HTTPS block и примените конфигурацию:
+
+```bash
+docker compose exec -T nginx nginx -t
+docker compose exec -T nginx nginx -s reload
 ```
 
-Для второй копии на отдельной машине задайте в `.env`, например:
-`BACKUP_REMOTE=backup@example.ru:/srv/backups/craft-map`. SSH-ключ пользователя,
-запускающего cron, должен иметь доступ к этому адресу. Восстановление из архивов
-следует проверять регулярно на тестовом окружении.
+### Прямой деплой
 
-### CI/CD
+GitHub Actions для деплоя не используется. После commit и push обновление
+запускается вручную через SSH:
 
-Деплой автоматический: push в `main` на GitHub → workflow
-`.github/workflows/deploy.yml` заходит по SSH на прод, делает
-`git reset --hard origin/main`, применяет актуальный Compose, ждёт health-check и
-проверяет публичный API.
-Запустить вручную можно через вкладку Actions (workflow_dispatch).
+```bash
+ssh root@SERVER
+cd /opt/CRAFT_map
+git fetch origin main
+git pull --ff-only origin main
+docker compose config --quiet
+docker compose build app
+docker compose up -d --remove-orphans
+docker compose exec -T nginx nginx -t
+docker compose exec -T nginx nginx -s reload
+docker compose ps
+curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 \
+  https://xn--80ayho4cq.site/api/health
+```
 
-Требуются секреты репозитория `DEPLOY_SSH_KEY` (приватный ed25519-ключ,
-парный публичный лежит в `/root/.ssh/authorized_keys` на сервере) и
-`DEPLOY_KNOWN_HOSTS` с заранее проверенной строкой host key сервера. Не формируйте
-этот секрет через `ssh-keyscan` внутри CI: сверяйте отпечаток по доверенному каналу.
-Прямой rsync-деплой больше не нужен — код на сервере обновляется только
-через git, локальные правки в `/opt/CRAFT_map` будут затёрты.
+`git pull --ff-only` намеренно не затирает локальные изменения на сервере. Если
+он завершился ошибкой, сначала разберите расхождение; не заменяйте эту команду
+безусловным `reset --hard`. Миграции и seed запускаются entrypoint-скриптом `app`.
 
-## Фазы (из ТЗ)
+Устаревшие GitHub secrets `DEPLOY_SSH_KEY` и `DEPLOY_KNOWN_HOSTS`, а также
+соответствующий deploy key на сервере следует удалить после перехода на direct
+deploy.
 
-1. ✅ Каркас: compose, миграции, seed категорий и админа
-2. ✅ Импорт GeoJSON (округа + объекты, идемпотентный)
-3. ✅ Карта MVP: MapLibre, маркеры из API, fallback-подложка
-4. ✅ Интерактив: поиск, категории, кластеры, карточки, mobile
-5. ✅ Стиль подложки под палитру КРАФТ (`app/public/map-style.json`, правится в Maputnik);
-      сборку `tyumen.pmtiles` выполнить по `tiles/README.md`
-6. ✅ Админка: Auth.js, CRUD, фото (sharp), мини-карта координат, экспорт CSV/GeoJSON
-7. ✅ Прод: nginx, https (инструкция), бэкапы
+### Health и логи
 
-Открытые пункты: собрать реальную PMTiles-вырезку и глифы на сервере; заменить
-тестовые округа/объекты реальными слоями из QGIS; уточнить цвета категорий по брендбуку.
+`GET /api/health` проверяет подключение к БД, обязательные таблицы и миграции,
+а также доступность uploads и tiles, не раскрывая пути или тексты внутренних
+ошибок:
+
+- `200 {"status":"ok"}` — все проверки успешны;
+- `200 {"status":"degraded"}` — недоступна необязательная статика;
+- `503 {"status":"unavailable"}` — не готова БД или схема.
+
+Docker healthcheck приложения использует этот endpoint. Для `db`, `app` и
+`nginx` действует `restart: unless-stopped`; json-file логи ограничены тремя
+файлами по 10 МБ на сервис.
+
+## Бэкапы
+
+`db/backup.sh` создаёт согласованную пару архивов БД и uploads. Запись идёт через
+временные файлы с атомарным переименованием, каталог получает режим `0700`, файлы
+— `0600`. Скрипт проверяет gzip/tar, свежесть, SHA-256 и хранит по умолчанию
+14 дней. Внутренний `flock` исключает параллельные запуски. Только после
+успешной проверки скрипт запускает очистку неиспользуемых uploads.
+
+Имена содержат UTC timestamp:
+
+```text
+db-20260713T030000Z.sql.gz
+uploads-20260713T030000Z.tar.gz
+backup-20260713T030000Z.sha256
+```
+
+Без `BACKUP_REMOTE` бэкап остаётся полностью локальным. Необязательные настройки
+в `.env`:
+
+```dotenv
+# BACKUP_DIR=/var/backups/craft-map
+# KEEP_DAYS=14
+# BACKUP_MAX_AGE_SECONDS=600
+# BACKUP_REMOTE=backup@example.ru:/srv/backups/craft-map
+# UPLOAD_CLEANUP_GRACE_HOURS=24
+```
+
+Безопасный шаблон `/etc/cron.d/craft-map-backup`:
+
+```cron
+30 3 * * * root flock -n /run/lock/craft-map-backup.lock /opt/CRAFT_map/db/backup.sh >>/var/log/craft-map-backup.log 2>&1
+```
+
+У пользователя cron должны быть права на Docker и каталог бэкапа. Если настроен
+`BACKUP_REMOTE`, заранее проверьте SSH host key и ограничьте ключ только каталогом
+назначения. Внешняя копия рекомендуется, но не является условием работы скрипта.
+
+### Проверка и восстановление
+
+Восстановление регулярно репетируйте в отдельном окружении. Перед production
+restore сначала запустите свежий safety backup. Затем выберите одну тройку файлов
+с одинаковым timestamp и проверьте checksum:
+
+```bash
+STAMP=20260713T030000Z
+BACKUP_DIR=/var/backups/craft-map
+(cd "$BACKUP_DIR" && sha256sum -c "backup-$STAMP.sha256")
+```
+
+Следующие команды останавливают запись данных и пересоздают production БД,
+поэтому выполняйте их только в согласованное окно:
+
+```bash
+cd /opt/CRAFT_map
+set -a
+. ./.env
+set +a
+: "${STAMP:?set the backup timestamp first}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/craft-map}"
+
+docker compose stop nginx app
+docker compose exec -T db dropdb --if-exists --force \
+  -U "$POSTGRES_USER" "$POSTGRES_DB"
+docker compose exec -T db createdb -U "$POSTGRES_USER" "$POSTGRES_DB"
+gzip -dc "$BACKUP_DIR/db-$STAMP.sql.gz" | \
+  docker compose exec -T db psql -v ON_ERROR_STOP=1 \
+    -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+
+# Архив накладывается поверх uploads. Лишние файлы безопасно удалит cleanup
+# после проверки восстановленного приложения.
+gzip -dc "$BACKUP_DIR/uploads-$STAMP.tar.gz" | \
+  docker compose run --rm --no-deps -T app tar xf - -C /data
+
+docker compose up -d
+curl -fsS https://xn--80ayho4cq.site/api/health
+```
+
+## Продление сертификатов
+
+`scripts/renew-certificates.sh` запускает закреплённый Certbot из maintenance
+profile с теми же `certbot_www` и `certbot_conf`, которые nginx монтирует
+read-only. После успешного renew скрипт проверяет nginx-конфигурацию и выполняет
+graceful reload.
+
+Перед установкой cron один раз выполните staging-проверку:
+
+```bash
+cd /opt/CRAFT_map
+./scripts/renew-certificates.sh --dry-run
+```
+
+Шаблон `/etc/cron.d/craft-map-certbot`:
+
+```cron
+17 3,15 * * * root flock -n /run/lock/craft-map-certbot.lock /opt/CRAFT_map/scripts/renew-certificates.sh >>/var/log/craft-map-certbot.log 2>&1
+```
+
+Cron не устанавливается репозиторием автоматически. Не используйте
+`docker compose down -v`: эта команда удалит БД, uploads и сертификаты. Архивы из
+`db/backup.sh` не включают `certbot_conf`; для disaster recovery храните отдельно
+защищённую копию этого volume или будьте готовы безопасно перевыпустить сертификат.

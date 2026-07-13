@@ -59,6 +59,12 @@ describe('rankSearchMatch', () => {
     expect(address!).toBeGreaterThan(metadata!)
   })
 
+  it('tolerates one typo only in sufficiently long words', () => {
+    expect(rankSearchMatch('памяник', { title: 'Памятник героям' })).not.toBeNull()
+    expect(rankSearchMatch('памятнки', { title: 'Памятник героям' })).not.toBeNull()
+    expect(rankSearchMatch('мак', { title: 'Маяк' })).toBeNull()
+  })
+
   it('rejects a query made only of map stop words', () => {
     expect(
       rankSearchMatch('г. Тюмень, район и округ', {

@@ -13,3 +13,6 @@ db/import/.venv/
 monument_photos/
 __pycache__/
 *.tsbuildinfo
+app/test-results/
+app/playwright-report/
+app/blob-report/

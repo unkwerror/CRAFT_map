@@ -4,10 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   eventsWord,
   filterPublicEvents,
+  filterPublicEventsByPeriod,
   formatEventDates,
+  formatEventTime,
   groupPublicEvents,
   parsePublicEventsResponse,
 } from '@/lib/public-events-ui'
+import type { EventPeriod } from '@/lib/public-events-ui'
 import type { PublicEventDto } from '@/lib/types'
 
 interface Props {
@@ -20,12 +23,25 @@ function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () =>
   const location = [event.address, event.districtName ? `${event.districtName} округ` : null]
     .filter(Boolean)
     .join(' · ')
+  const time = formatEventTime(event.startsAt, event.endsAt)
+
+  async function shareEvent() {
+    const url = `${window.location.origin}/event/${event.id}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: event.title, url })
+        return
+      } catch (error) {
+        if ((error as DOMException).name === 'AbortError') return
+      }
+    }
+    await navigator.clipboard?.writeText(url)
+  }
 
   return (
     <article className="event-card">
-      <button
-        type="button"
-        onClick={onSelect}
+      <a
+        href={`/event/${event.id}`}
         className="event-card__button"
       >
         {event.thumb && (
@@ -37,15 +53,28 @@ function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () =>
         <span className="event-card__body">
           <span className="event-card__meta">
             {event.startsOn === event.endsOn ? (
-              <time dateTime={event.startsOn}>{formatEventDates(event.startsOn, event.endsOn)}</time>
+              <time dateTime={`${event.startsOn}${event.startsAt ? `T${event.startsAt}` : ''}`}>
+                {formatEventDates(event.startsOn, event.endsOn)}{time ? ` · ${time}` : ''}
+              </time>
             ) : (
-              <span>{formatEventDates(event.startsOn, event.endsOn)}</span>
+              <span>{formatEventDates(event.startsOn, event.endsOn)}{time ? ` · ${time}` : ''}</span>
             )}
             {event.isToday && <span className="event-card__today">Идёт сегодня</span>}
           </span>
           <span className="event-card__title">{event.title}</span>
+          {event.status !== 'scheduled' && (
+            <span className={`event-card__status event-card__status--${event.status}`}>
+              {event.status === 'cancelled' ? 'Отменено' : 'Перенесено'}
+            </span>
+          )}
           {event.description && (
             <span className="event-card__description">{event.description}</span>
+          )}
+          {(event.venue || event.priceInfo) && (
+            <span className="event-card__facts">
+              {event.venue && <small>{event.venue}</small>}
+              {event.priceInfo && <small>{event.priceInfo}</small>}
+            </span>
           )}
           <span className="event-card__object">
             <span
@@ -59,16 +88,42 @@ function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () =>
             </span>
           </span>
           <span className="event-card__action">
-            Показать памятник на карте
+            Подробнее о событии
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
               <path d="M3 8h10m-4-4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
         </span>
-      </button>
+      </a>
+      <div className="event-card__footer">
+        <button type="button" onClick={onSelect}>На карте</button>
+        <a href={`/api/events/${event.id}/calendar`}>В календарь</a>
+        <button type="button" onClick={() => void shareEvent()}>Поделиться</button>
+        {event.registrationUrl && event.status !== 'cancelled' && (
+          <a href={event.registrationUrl} target="_blank" rel="noopener noreferrer">Регистрация ↗</a>
+        )}
+      </div>
     </article>
   )
 }
+
+function tyumenTodayIso(): string {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Yekaterinburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${value.year}-${value.month}-${value.day}`
+}
+
+const PERIODS: { value: EventPeriod; label: string }[] = [
+  { value: 'all', label: 'Все' },
+  { value: 'today', label: 'Сегодня' },
+  { value: 'weekend', label: 'Выходные' },
+  { value: 'month', label: 'Этот месяц' },
+]
 
 /** Общая афиша текущих и будущих мероприятий. */
 export default function EventsPanel({ suspended, onClose, onSelectObject }: Props) {
@@ -76,13 +131,16 @@ export default function EventsPanel({ suspended, onClose, onSelectObject }: Prop
   const [error, setError] = useState(false)
   const [requestKey, setRequestKey] = useState(0)
   const [query, setQuery] = useState('')
+  const [period, setPeriod] = useState<EventPeriod>('all')
   const panelRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     let cancelled = false
     setEvents(null)
     setError(false)
-    fetch('/api/events')
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 12_000)
+    fetch('/api/events', { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(String(response.status))
         const payload = (await response.json()) as unknown
@@ -98,12 +156,14 @@ export default function EventsPanel({ suspended, onClose, onSelectObject }: Prop
       })
     return () => {
       cancelled = true
+      window.clearTimeout(timeout)
+      controller.abort()
     }
   }, [requestKey])
 
   useEffect(() => {
-    panelRef.current?.focus({ preventScroll: true })
-  }, [])
+    if (!suspended) panelRef.current?.focus({ preventScroll: true })
+  }, [suspended])
 
   useEffect(() => {
     if (suspended) return
@@ -161,10 +221,11 @@ export default function EventsPanel({ suspended, onClose, onSelectObject }: Prop
     }
   }, [suspended])
 
-  const filtered = useMemo(
-    () => filterPublicEvents(events ?? [], query),
-    [events, query]
-  )
+  const todayIso = useMemo(tyumenTodayIso, [])
+  const filtered = useMemo(() => {
+    const byQuery = filterPublicEvents(events ?? [], query)
+    return filterPublicEventsByPeriod(byQuery, period, todayIso)
+  }, [events, period, query, todayIso])
   const groups = useMemo(() => groupPublicEvents(filtered), [filtered])
 
   return (
@@ -227,9 +288,23 @@ export default function EventsPanel({ suspended, onClose, onSelectObject }: Prop
           )}
         </div>
 
+        <div className="events-periods" aria-label="Период мероприятий">
+          {PERIODS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setPeriod(item.value)}
+              aria-pressed={period === item.value}
+              className={period === item.value ? 'events-periods__item events-periods__item--active' : 'events-periods__item'}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         {events && events.length > 0 && (
           <p className="mt-3 text-xs text-[var(--ink-subtle)]" aria-live="polite">
-            {query.trim()
+            {query.trim() || period !== 'all'
               ? `Найдено: ${filtered.length}`
               : `${events.length} ${eventsWord(events.length)}`}
           </p>
@@ -282,9 +357,16 @@ export default function EventsPanel({ suspended, onClose, onSelectObject }: Prop
           <div className="events-empty">
             <span className="events-empty__icon" aria-hidden>⌕</span>
             <h2>Ничего не найдено</h2>
-            <p>Попробуйте изменить запрос или найти мероприятие по названию памятника.</p>
-            <button type="button" onClick={() => setQuery('')} className="btn-accent mt-5 min-h-11 px-5 text-sm">
-              Сбросить поиск
+            <p>Попробуйте изменить запрос или выбранный период.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                setPeriod('all')
+              }}
+              className="btn-accent mt-5 min-h-11 px-5 text-sm"
+            >
+              Сбросить фильтры
             </button>
           </div>
         )}

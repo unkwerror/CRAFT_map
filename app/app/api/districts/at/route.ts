@@ -9,7 +9,7 @@ interface DistrictRow {
   name: string
 }
 
-/** Округ в точке. Использует тот же ST_Contains, что и триггер objects_set_district. */
+/** Округ в точке. Использует тот же ST_Covers, что и триггер objects_set_district. */
 export async function GET(req: NextRequest) {
   const parsed = districtLookupQuerySchema.safeParse({
     lng: req.nextUrl.searchParams.get('lng'),
@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
   const [district] = await pg<DistrictRow[]>`
     select id, name
     from districts
-    where st_contains(geom, st_setsrid(st_makepoint(${lng}, ${lat}), 4326))
+    where st_covers(geom, st_setsrid(st_makepoint(${lng}, ${lat}), 4326))
+    order by st_area(geom) asc, id asc
     limit 1`
 
   return NextResponse.json({ district: district ?? null })

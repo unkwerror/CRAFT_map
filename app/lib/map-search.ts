@@ -73,10 +73,43 @@ function commonPrefixLength(left: string, right: string): number {
   return index
 }
 
+/** Одна вставка/удаление/замена или перестановка соседних букв. */
+function isSingleTypo(left: string, right: string): boolean {
+  if (Math.abs(left.length - right.length) > 1) return false
+  if (left.length === right.length) {
+    const mismatches: number[] = []
+    for (let index = 0; index < left.length; index++) {
+      if (left[index] !== right[index]) mismatches.push(index)
+      if (mismatches.length > 2) return false
+    }
+    if (mismatches.length <= 1) return true
+    const first = mismatches[0]!
+    const second = mismatches[1]!
+    return second === first + 1 && left[first] === right[second] && left[second] === right[first]
+  }
+
+  const shorter = left.length < right.length ? left : right
+  const longer = left.length < right.length ? right : left
+  let shortIndex = 0
+  let longIndex = 0
+  let skipped = false
+  while (shortIndex < shorter.length && longIndex < longer.length) {
+    if (shorter[shortIndex] === longer[longIndex]) {
+      shortIndex++
+      longIndex++
+      continue
+    }
+    if (skipped) return false
+    skipped = true
+    longIndex++
+  }
+  return true
+}
+
 /**
  * 1 — точный токен, 0.9 — безопасный префикс, 0.75 — близкие русские формы
- * с достаточно длинным общим корнем. Опечатки внутри слова намеренно не
- * исправляются: это защищает короткие названия от случайных совпадений.
+ * с достаточно длинным общим корнем. Для слов от пяти букв допускается ровно
+ * одна опечатка; короткие названия защищены от случайных совпадений.
  */
 function tokenSimilarity(queryToken: string, targetToken: string): number | null {
   if (queryToken === targetToken) return 1
@@ -88,7 +121,8 @@ function tokenSimilarity(queryToken: string, targetToken: string): number | null
   if (shorterLength < 5) return null
   const shared = commonPrefixLength(queryToken, targetToken)
   const required = Math.max(4, shorterLength - 2)
-  return shared >= required ? 0.75 : null
+  if (shared >= required) return 0.75
+  return isSingleTypo(queryToken, targetToken) ? 0.65 : null
 }
 
 function tokenMatchQuality(queryTokens: string[], targetTokens: string[]): number | null {

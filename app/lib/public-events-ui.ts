@@ -46,6 +46,8 @@ export interface PublicEventGroup {
   events: PublicEventDto[]
 }
 
+export type EventPeriod = 'all' | 'today' | 'weekend' | 'month'
+
 function parseIsoDate(value: string): DateParts | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
   if (!match) return null
@@ -53,7 +55,28 @@ function parseIsoDate(value: string): DateParts | null {
   const month = Number(match[2])
   const day = Number(match[3])
   if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) return null
   return { year, month, day }
+}
+
+function isoToUtc(value: string): Date | null {
+  const parts = parseIsoDate(value)
+  return parts ? new Date(Date.UTC(parts.year, parts.month - 1, parts.day)) : null
+}
+
+function utcToIso(value: Date): string {
+  return value.toISOString().slice(0, 10)
+}
+
+function shiftUtcDate(value: Date, days: number): Date {
+  const result = new Date(value)
+  result.setUTCDate(result.getUTCDate() + days)
+  return result
 }
 
 export function formatEventDates(startsOn: string, endsOn: string): string {
@@ -73,6 +96,26 @@ export function formatEventDates(startsOn: string, endsOn: string): string {
   return `${start.day} ${startMonth} ${start.year} — ${end.day} ${endMonth} ${end.year}`
 }
 
+export function formatEventTime(startsAt: string | null, endsAt: string | null): string | null {
+  if (!startsAt) return null
+  return endsAt ? `${startsAt}–${endsAt}` : startsAt
+}
+
+/** Даты для schema.org: не публикуем полночь как ложное окончание timed-события. */
+export function eventSchemaDateTimes(
+  startsOn: string,
+  endsOn: string,
+  startsAt: string | null,
+  endsAt: string | null
+): { startDate: string; endDate?: string } {
+  const startDate = startsAt ? `${startsOn}T${startsAt}:00+05:00` : startsOn
+  if (startsAt && !endsAt) return { startDate }
+  return {
+    startDate,
+    endDate: endsAt ? `${endsOn}T${endsAt}:00+05:00` : endsOn,
+  }
+}
+
 function monthLabel(iso: string): string {
   const date = parseIsoDate(iso)
   if (!date) return 'Ближайшие'
@@ -88,10 +131,38 @@ function eventSearchText(event: PublicEventDto): string {
       event.categoryTitle,
       event.address,
       event.districtName,
+      event.venue,
+      event.organizer,
+      event.priceInfo,
     ]
       .filter(Boolean)
       .join(' ')
   )
+}
+
+/** Фильтр афиши относительно календарной даты Тюмени. */
+export function filterPublicEventsByPeriod(
+  events: PublicEventDto[],
+  period: EventPeriod,
+  todayIso: string
+): PublicEventDto[] {
+  if (period === 'all') return events
+  const today = isoToUtc(todayIso)
+  if (!today) return events
+
+  let rangeStart = todayIso
+  let rangeEnd = todayIso
+  if (period === 'weekend') {
+    const weekday = today.getUTCDay()
+    const untilSaturday = weekday === 0 ? -1 : (6 - weekday + 7) % 7
+    rangeStart = utcToIso(shiftUtcDate(today, untilSaturday))
+    rangeEnd = utcToIso(shiftUtcDate(isoToUtc(rangeStart) ?? today, 1))
+  } else if (period === 'month') {
+    rangeStart = `${todayIso.slice(0, 7)}-01`
+    rangeEnd = utcToIso(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)))
+  }
+
+  return events.filter((event) => event.startsOn <= rangeEnd && event.endsOn >= rangeStart)
 }
 
 /** Поиск по мероприятию, памятнику, категории, округу и адресу. */
@@ -105,6 +176,7 @@ function compareEvents(left: PublicEventDto, right: PublicEventDto): number {
   if (left.isToday !== right.isToday) return left.isToday ? -1 : 1
   return (
     left.startsOn.localeCompare(right.startsOn) ||
+    (left.startsAt ?? '99:99').localeCompare(right.startsAt ?? '99:99') ||
     left.endsOn.localeCompare(right.endsOn) ||
     left.id.localeCompare(right.id)
   )
@@ -147,6 +219,10 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || isString(value)
 }
 
+function isEventStatus(value: unknown): value is PublicEventDto['status'] {
+  return value === 'scheduled' || value === 'postponed' || value === 'cancelled'
+}
+
 function isPublicEvent(value: unknown): value is PublicEventDto {
   if (!value || typeof value !== 'object') return false
   const event = value as Partial<Record<keyof PublicEventDto, unknown>>
@@ -158,6 +234,15 @@ function isPublicEvent(value: unknown): value is PublicEventDto {
     ISO_DATE_RE.test(event.startsOn) &&
     isString(event.endsOn) &&
     ISO_DATE_RE.test(event.endsOn) &&
+    isNullableString(event.startsAt) &&
+    isNullableString(event.endsAt) &&
+    isString(event.timezone) &&
+    isNullableString(event.venue) &&
+    isNullableString(event.organizer) &&
+    isNullableString(event.priceInfo) &&
+    isNullableString(event.registrationUrl) &&
+    isNullableString(event.accessibility) &&
+    isEventStatus(event.status) &&
     typeof event.isToday === 'boolean' &&
     isString(event.objectId) &&
     isString(event.objectTitle) &&

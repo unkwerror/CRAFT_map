@@ -53,7 +53,7 @@ export default function CategoryChips({
           <circle cx="4" cy="12" r="1.5" fill="currentColor" />
           <circle cx="12" cy="12" r="1.5" fill="currentColor" />
         </svg>
-        Все
+        Все категории
         <span className="category-chip__count">{availableCount}</span>
       </button>
 

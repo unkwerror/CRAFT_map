@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { appendAdminAudit } from '@/lib/audit'
 import { pg } from '@/lib/db'
 import { requireRole } from '@/lib/guard'
 import { objectInputSchema, publishedPatchSchema, uuidSchema } from '@/lib/validation'
@@ -96,21 +97,31 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
   const d = parsed.data
 
-  const rows = await pg<{ id: string }[]>`
-    update objects
-    set title = ${d.title}, description = ${d.description ?? null},
-        category_id = ${d.categoryId}, address = ${d.address ?? null},
-        geom = st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
-        photos = ${JSON.stringify(d.photos)}::jsonb,
-        videos = ${JSON.stringify(d.videos)}::jsonb,
-        audio_url = ${d.audioUrl ?? null}, audio_text = ${d.audioText ?? null},
-        rating = ${d.rating ?? null},
-        sections = ${JSON.stringify(d.sections)}::jsonb,
-        model_url = ${d.modelUrl ?? null},
-        published = ${d.published}, sort_weight = ${d.sortWeight}
-    where id = ${id}
-    returning id`
-  if (!rows.length) return notFound()
+  const row = await pg.begin(async (sql) => {
+    const [updated] = await sql<{ id: string }[]>`
+      update objects
+      set title = ${d.title}, description = ${d.description ?? null},
+          category_id = ${d.categoryId}, address = ${d.address ?? null},
+          geom = st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
+          photos = ${JSON.stringify(d.photos)}::jsonb,
+          videos = ${JSON.stringify(d.videos)}::jsonb,
+          audio_url = ${d.audioUrl ?? null}, audio_text = ${d.audioText ?? null},
+          rating = ${d.rating ?? null},
+          sections = ${JSON.stringify(d.sections)}::jsonb,
+          model_url = ${d.modelUrl ?? null},
+          published = ${d.published}, sort_weight = ${d.sortWeight}
+      where id = ${id}
+      returning id`
+    if (!updated) return null
+    await appendAdminAudit(sql, guard.session, {
+      action: 'update',
+      entity: 'object',
+      entityId: updated.id,
+      metadata: { published: d.published },
+    })
+    return updated
+  })
+  if (!row) return notFound()
   return NextResponse.json({ ok: true })
 }
 
@@ -125,9 +136,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const parsed = publishedPatchSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Некорректные данные' }, { status: 400 })
 
-  const rows = await pg<{ id: string }[]>`
-    update objects set published = ${parsed.data.published} where id = ${id} returning id`
-  if (!rows.length) return notFound()
+  const row = await pg.begin(async (sql) => {
+    const [updated] = await sql<{ id: string }[]>`
+      update objects set published = ${parsed.data.published} where id = ${id} returning id`
+    if (!updated) return null
+    await appendAdminAudit(sql, guard.session, {
+      action: parsed.data.published ? 'publish' : 'unpublish',
+      entity: 'object',
+      entityId: updated.id,
+      metadata: { published: parsed.data.published },
+    })
+    return updated
+  })
+  if (!row) return notFound()
   return NextResponse.json({ ok: true })
 }
 
@@ -139,7 +160,17 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params
   if (!uuidSchema.safeParse(id).success) return notFound()
 
-  const rows = await pg<{ id: string }[]>`delete from objects where id = ${id} returning id`
-  if (!rows.length) return notFound()
+  const row = await pg.begin(async (sql) => {
+    const [deleted] = await sql<{ id: string }[]>`
+      delete from objects where id = ${id} returning id`
+    if (!deleted) return null
+    await appendAdminAudit(sql, guard.session, {
+      action: 'delete',
+      entity: 'object',
+      entityId: deleted.id,
+    })
+    return deleted
+  })
+  if (!row) return notFound()
   return NextResponse.json({ ok: true })
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { appendAdminAudit } from '@/lib/audit'
 import { pg } from '@/lib/db'
 import { requireRole } from '@/lib/guard'
 import { objectInputSchema } from '@/lib/validation'
@@ -86,17 +87,27 @@ export async function POST(req: NextRequest) {
   const d = parsed.data
 
   try {
-    const [row] = await pg<{ id: string }[]>`
-      insert into objects (title, description, category_id, address, geom, photos, videos,
-                           audio_url, audio_text, rating, sections, model_url, published, sort_weight)
-      values (${d.title}, ${d.description ?? null}, ${d.categoryId}, ${d.address ?? null},
-              st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
-              ${JSON.stringify(d.photos)}::jsonb, ${JSON.stringify(d.videos)}::jsonb,
-              ${d.audioUrl ?? null}, ${d.audioText ?? null}, ${d.rating ?? null},
-              ${JSON.stringify(d.sections)}::jsonb,
-              ${d.modelUrl ?? null}, ${d.published}, ${d.sortWeight})
-      returning id`
-    return NextResponse.json({ id: row?.id }, { status: 201 })
+    const row = await pg.begin(async (sql) => {
+      const [created] = await sql<{ id: string }[]>`
+        insert into objects (title, description, category_id, address, geom, photos, videos,
+                             audio_url, audio_text, rating, sections, model_url, published, sort_weight)
+        values (${d.title}, ${d.description ?? null}, ${d.categoryId}, ${d.address ?? null},
+                st_setsrid(st_makepoint(${d.lng}, ${d.lat}), 4326),
+                ${JSON.stringify(d.photos)}::jsonb, ${JSON.stringify(d.videos)}::jsonb,
+                ${d.audioUrl ?? null}, ${d.audioText ?? null}, ${d.rating ?? null},
+                ${JSON.stringify(d.sections)}::jsonb,
+                ${d.modelUrl ?? null}, ${d.published}, ${d.sortWeight})
+        returning id`
+      if (!created) throw new Error('Object insert returned no id')
+      await appendAdminAudit(sql, guard.session, {
+        action: 'create',
+        entity: 'object',
+        entityId: created.id,
+        metadata: { published: d.published },
+      })
+      return created
+    })
+    return NextResponse.json({ id: row.id }, { status: 201 })
   } catch (e) {
     console.error('POST /api/admin/objects:', e)
     return NextResponse.json({ error: 'Не удалось создать объект (проверьте категорию)' }, { status: 400 })

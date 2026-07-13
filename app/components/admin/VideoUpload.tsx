@@ -51,6 +51,26 @@ export default function VideoUpload({ videos, onChange, onUploadingChange }: Pro
     onChange(videos.map((v, i) => (i === idx ? { ...v, alt: alt || undefined } : v)))
   }
 
+  async function uploadCaptions(videoSrc: string, file: File) {
+    setError('')
+    setBusy((count) => count + 1)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('kind', 'captions')
+      const res = await fetch('/api/admin/upload-media', { method: 'POST', body: fd })
+      const body = (await res.json()) as { url?: string; error?: string }
+      if (!res.ok || !body.url) throw new Error(body.error ?? 'Ошибка загрузки субтитров')
+      onChange(latest.current.map((video) => (
+        video.src === videoSrc ? { ...video, captions: body.url } : video
+      )))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ошибка загрузки субтитров')
+    } finally {
+      setBusy((count) => count - 1)
+    }
+  }
+
   function remove(idx: number) {
     onChange(videos.filter((_, i) => i !== idx))
   }
@@ -96,12 +116,39 @@ export default function VideoUpload({ videos, onChange, onUploadingChange }: Pro
           {videos.map((v, i) => (
             <li key={v.src} className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:flex sm:gap-3">
               <video src={v.src} preload="metadata" className="h-14 w-20 shrink-0 rounded-md bg-black object-cover" />
-              <input
-                value={v.alt ?? ''}
-                onChange={(e) => setAlt(i, e.target.value)}
-                placeholder="Подпись…"
-                className="min-w-0 w-full flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-slate-500"
-              />
+              <div className="min-w-0 space-y-1.5">
+                <input
+                  value={v.alt ?? ''}
+                  onChange={(e) => setAlt(i, e.target.value)}
+                  placeholder="Подпись…"
+                  className="min-w-0 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-slate-500"
+                />
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <label className="cursor-pointer rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">
+                    {v.captions ? 'Заменить субтитры' : 'Добавить субтитры .vtt'}
+                    <input
+                      type="file"
+                      accept=".vtt,text/vtt"
+                      hidden
+                      disabled={uploading}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (file) void uploadCaptions(v.src, file)
+                        event.target.value = ''
+                      }}
+                    />
+                  </label>
+                  {v.captions && (
+                    <button
+                      type="button"
+                      onClick={() => onChange(videos.map((video, index) => index === i ? { ...video, captions: undefined } : video))}
+                      className="text-red-600 hover:underline"
+                    >
+                      Убрать субтитры
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="col-start-2 flex shrink-0 items-center justify-end gap-1 text-slate-500 sm:col-auto">
                 <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Выше"
                   className="rounded px-1.5 py-1 hover:bg-slate-100 disabled:opacity-30">↑</button>

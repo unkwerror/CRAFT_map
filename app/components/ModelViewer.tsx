@@ -15,10 +15,13 @@ interface Props {
 export default function ModelViewer({ src, alt }: Props) {
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [requestKey, setRequestKey] = useState(0)
   const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
     let cancelled = false
+    setReady(false)
+    setFailed(false)
     import('@google/model-viewer')
       .then(({ ModelViewerElement }) => {
         // В установленном @google/model-viewer MeshoptDecoder встроен в bundle,
@@ -31,7 +34,7 @@ export default function ModelViewer({ src, alt }: Props) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [requestKey])
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -44,7 +47,12 @@ export default function ModelViewer({ src, alt }: Props) {
   if (failed) {
     return (
       <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-white/60">
-        Не удалось загрузить 3D-вьюер.
+        <div>
+          <p>Не удалось загрузить 3D-вьюер.</p>
+          <button type="button" onClick={() => setRequestKey((value) => value + 1)} className="btn-ghost mt-3 min-h-10 rounded-xl px-4 text-sm text-white/80">
+            Повторить
+          </button>
+        </div>
       </div>
     )
   }
@@ -69,6 +77,7 @@ export default function ModelViewer({ src, alt }: Props) {
       exposure="1"
       touch-action="pan-y"
       interaction-prompt="none"
+      onError={() => setFailed(true)}
       style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
     />
   )

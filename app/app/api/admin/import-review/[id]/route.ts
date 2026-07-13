@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { appendAdminAudit } from '@/lib/audit'
 import { pg } from '@/lib/db'
 import { requireRole } from '@/lib/guard'
 import { importReviewPatchSchema, uuidSchema } from '@/lib/validation'
@@ -27,27 +28,47 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   const { lng, lat, verify } = parsed.data
 
-  if (lng !== undefined && lat !== undefined) {
-    const rows = await pg<{ id: string }[]>`
-      update objects
-      set geom = st_setsrid(st_makepoint(${lng}, ${lat}), 4326)
-      where id = ${id} and source_id is not null
-      returning id`
-    if (!rows.length) return NextResponse.json({ error: 'Объект не найден' }, { status: 404 })
-  }
+  const result = await pg.begin(async (sql) => {
+    let updatedId: string | null = null
 
-  if (verify) {
-    const rows = await pg<{ id: string }[]>`
-      update objects
-      set geocode_status = 'verified', published = true
-      where id = ${id} and source_id is not null and geom is not null
-      returning id`
-    if (!rows.length) {
-      return NextResponse.json(
-        { error: 'Нельзя подтвердить объект без координаты' },
-        { status: 400 }
-      )
+    if (lng !== undefined && lat !== undefined) {
+      const [updated] = await sql<{ id: string }[]>`
+        update objects
+        set geom = st_setsrid(st_makepoint(${lng}, ${lat}), 4326)
+        where id = ${id} and source_id is not null
+        returning id`
+      if (!updated) return 'not-found' as const
+      updatedId = updated.id
     }
+
+    if (verify) {
+      const [updated] = await sql<{ id: string }[]>`
+        update objects
+        set geocode_status = 'verified', published = true
+        where id = ${id} and source_id is not null and geom is not null
+        returning id`
+      if (!updated) return 'cannot-verify' as const
+      updatedId = updated.id
+    }
+
+    if (!updatedId) return 'not-found' as const
+    await appendAdminAudit(sql, guard.session, {
+      action: 'update',
+      entity: 'object',
+      entityId: updatedId,
+      metadata: verify ? { published: true } : undefined,
+    })
+    return 'ok' as const
+  })
+
+  if (result === 'not-found') {
+    return NextResponse.json({ error: 'Объект не найден' }, { status: 404 })
+  }
+  if (result === 'cannot-verify') {
+    return NextResponse.json(
+      { error: 'Нельзя подтвердить объект без координаты' },
+      { status: 400 }
+    )
   }
 
   return NextResponse.json({ ok: true })

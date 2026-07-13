@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
-import { db } from '@/lib/db'
+import { appendAdminAudit } from '@/lib/audit'
+import { db, pg } from '@/lib/db'
 import { users } from '@/lib/schema'
 import { requireRole } from '@/lib/guard'
 import { userInputSchema } from '@/lib/validation'
@@ -35,12 +36,35 @@ export async function POST(req: NextRequest) {
   const { email, password, role } = parsed.data
 
   try {
-    const [row] = await db
-      .insert(users)
-      .values({ email: email.toLowerCase(), passwordHash: await hash(password, 12), role })
-      .returning({ id: users.id })
-    return NextResponse.json({ id: row?.id }, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Пользователь с таким email уже существует' }, { status: 409 })
+    const passwordHash = await hash(password, 12)
+    const row = await pg.begin(async (sql) => {
+      const [created] = await sql<{ id: string }[]>`
+        insert into users (email, password_hash, role)
+        values (${email.toLowerCase()}, ${passwordHash}, ${role})
+        returning id`
+      if (!created) throw new Error('User insert returned no id')
+      await appendAdminAudit(sql, guard.session, {
+        action: 'create',
+        entity: 'user',
+        entityId: created.id,
+        metadata: { role },
+      })
+      return created
+    })
+    return NextResponse.json({ id: row.id }, { status: 201 })
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === '23505'
+    ) {
+      return NextResponse.json(
+        { error: 'Пользователь с таким email уже существует' },
+        { status: 409 }
+      )
+    }
+    console.error('POST /api/admin/users failed:', error)
+    return NextResponse.json({ error: 'Не удалось создать пользователя' }, { status: 500 })
   }
 }

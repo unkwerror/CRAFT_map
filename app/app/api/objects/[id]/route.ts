@@ -34,6 +34,15 @@ interface EventRow {
   description: string | null
   starts_on: string
   ends_on: string
+  starts_at: string | null
+  ends_at: string | null
+  timezone: string
+  venue: string | null
+  organizer: string | null
+  price_info: string | null
+  registration_url: string | null
+  accessibility: string | null
+  status: EventDto['status']
   is_today: boolean
 }
 
@@ -68,9 +77,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     select e.id, e.title, e.description,
            to_char(e.starts_on, 'YYYY-MM-DD') as starts_on,
            to_char(e.ends_on, 'YYYY-MM-DD') as ends_on,
+           case when e.starts_at is null then null else to_char(e.starts_at, 'HH24:MI') end as starts_at,
+           case when e.ends_at is null then null else to_char(e.ends_at, 'HH24:MI') end as ends_at,
+           e.timezone, e.venue, e.organizer, e.price_info, e.registration_url,
+           e.accessibility, e.status,
            (now() at time zone 'Asia/Yekaterinburg')::date between e.starts_on and e.ends_on as is_today
     from events e
     where e.object_id = ${id}
+      and e.published
       and e.ends_on >= (now() at time zone 'Asia/Yekaterinburg')::date
     order by e.starts_on
     limit 10`
@@ -81,6 +95,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     description: e.description,
     startsOn: e.starts_on,
     endsOn: e.ends_on,
+    startsAt: e.starts_at,
+    endsAt: e.ends_at,
+    timezone: e.timezone,
+    venue: e.venue,
+    organizer: e.organizer,
+    priceInfo: e.price_info,
+    registrationUrl: e.registration_url,
+    accessibility: e.accessibility,
+    status: e.status,
     isToday: e.is_today,
   }))
   const photos = normalizePhotos(r.photos)

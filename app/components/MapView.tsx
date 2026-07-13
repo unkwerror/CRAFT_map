@@ -6,6 +6,7 @@ import { Protocol } from 'pmtiles'
 import { useEffect, useRef, useState } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { resolveMapStyle, TYUMEN_CENTER } from '@/lib/map-style'
+import type { MapCameraState } from '@/lib/public-map-url'
 import type { CategoryDto } from '@/lib/types'
 
 let protocolAdded = false
@@ -28,7 +29,10 @@ export interface MapViewProps {
   activeDistrictId: number | null
   /** fitBounds на округ; tick — чтобы повторный клик срабатывал */
   fitDistrict: { districtId: number; tick: number } | null
+  /** Камера из shareable URL; null-поля восстанавливают обзор города. */
+  camera: MapCameraState
   onSelect: (id: string | null) => void
+  onCameraChange?: (camera: MapCameraState) => void
   onReady?: () => void
   onError?: () => void
 }
@@ -58,6 +62,46 @@ function geometryBounds(geometry: GeoJSON.Geometry): [[number, number], [number,
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+const TYUMEN_OVERVIEW_ZOOM = 11.3
+
+const MAP_LOCALE: Record<string, string> = {
+  'AttributionControl.ToggleAttribution': 'Показать сведения о карте',
+  'GeolocateControl.FindMyLocation': 'Моё местоположение',
+  'GeolocateControl.LocationNotAvailable': 'Не удалось определить местоположение',
+  'Map.Title': 'Карта памятных мест Тюмени',
+  'NavigationControl.ResetBearing': 'Перетащите, чтобы повернуть карту; нажмите, чтобы вернуть север',
+  'NavigationControl.ZoomIn': 'Приблизить карту',
+  'NavigationControl.ZoomOut': 'Отдалить карту',
+}
+
+interface SavedCamera {
+  center: [number, number]
+  zoom: number
+  bearing: number
+  pitch: number
+}
+
+function readCamera(map: MLMap): MapCameraState {
+  const center = map.getCenter()
+  return {
+    center: { lng: center.lng, lat: center.lat },
+    zoom: map.getZoom(),
+    bearing: map.getBearing(),
+    pitch: map.getPitch(),
+  }
+}
+
+function cameraMatches(map: MLMap, camera: MapCameraState): boolean {
+  const current = readCamera(map)
+  const center = camera.center ?? { lng: TYUMEN_CENTER[0], lat: TYUMEN_CENTER[1] }
+  return (
+    Math.abs((current.center?.lng ?? 0) - center.lng) < 0.000001 &&
+    Math.abs((current.center?.lat ?? 0) - center.lat) < 0.000001 &&
+    Math.abs((current.zoom ?? 0) - (camera.zoom ?? TYUMEN_OVERVIEW_ZOOM)) < 0.001 &&
+    Math.abs((current.bearing ?? 0) - (camera.bearing ?? 0)) < 0.01 &&
+    Math.abs((current.pitch ?? 0) - (camera.pitch ?? 0)) < 0.01
+  )
+}
 
 export default function MapView({
   categories,
@@ -67,7 +111,9 @@ export default function MapView({
   highlightedId,
   activeDistrictId,
   fitDistrict,
+  camera,
   onSelect,
+  onCameraChange,
   onReady,
   onError,
 }: MapViewProps) {
@@ -76,12 +122,16 @@ export default function MapView({
   const [ready, setReady] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [hoveredClusterId, setHoveredClusterId] = useState<number | null>(null)
-  const [perspective, setPerspective] = useState(false)
+  const [perspective, setPerspective] = useState(() => (camera.pitch ?? 0) > 0.5)
+  const cameraBeforePerspectiveRef = useRef<SavedCamera | null>(null)
   const labelFontRef = useRef<string[]>(['Noto Sans Bold'])
+  const initialCameraRef = useRef(camera)
   const onSelectRef = useRef(onSelect)
+  const onCameraChangeRef = useRef(onCameraChange)
   const onReadyRef = useRef(onReady)
   const onErrorRef = useRef(onError)
   onSelectRef.current = onSelect
+  onCameraChangeRef.current = onCameraChange
   onReadyRef.current = onReady
   onErrorRef.current = onError
 
@@ -89,19 +139,27 @@ export default function MapView({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
     let cancelled = false
+    let hoverFrame: number | null = null
+    let latestHoverPoint: [number, number] | null = null
     ensurePmtilesProtocol()
 
     resolveMapStyle().then(({ style, labelFont }) => {
       if (cancelled || !containerRef.current) return
       labelFontRef.current = labelFont
+      const initialCamera = initialCameraRef.current
       const map = new maplibregl.Map({
         container: containerRef.current,
         style,
-        center: TYUMEN_CENTER,
-        zoom: 11.3,
+        center: initialCamera.center
+          ? [initialCamera.center.lng, initialCamera.center.lat]
+          : TYUMEN_CENTER,
+        zoom: initialCamera.zoom ?? TYUMEN_OVERVIEW_ZOOM,
+        bearing: initialCamera.bearing ?? 0,
+        pitch: initialCamera.pitch ?? 0,
         minZoom: 8,
         maxZoom: 19,
         attributionControl: { compact: true },
+        locale: MAP_LOCALE,
       })
       map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'bottom-right')
       // «Моё местоположение»: кнопка + пульсирующая точка юзера и круг точности.
@@ -128,7 +186,7 @@ export default function MapView({
               source: 'openmaptiles',
               'source-layer': 'building',
               minzoom: 14.2,
-              layout: { visibility: 'none' },
+              layout: { visibility: (initialCamera.pitch ?? 0) > 0.5 ? 'visible' : 'none' },
               paint: {
                 'fill-extrusion-color': '#2b4d63',
                 'fill-extrusion-height': [
@@ -154,7 +212,12 @@ export default function MapView({
           )
         }
         setReady(true)
+        onCameraChangeRef.current?.(readCamera(map))
         onReadyRef.current?.()
+      })
+
+      map.on('moveend', () => {
+        onCameraChangeRef.current?.(readCamera(map))
       })
 
       // клик с расширенной зоной тапа (±14px ≈ 40px hit area)
@@ -182,21 +245,35 @@ export default function MapView({
         }
       })
 
-      map.on('mousemove', (e) => {
-        const layers = ['objects-core', 'clusters-core'].filter((l) => map.getLayer(l))
-        if (!layers.length) return
-        const features = map.queryRenderedFeatures(e.point, { layers })
-        map.getCanvas().style.cursor = features.length ? 'pointer' : ''
-        const feature = features[0]
-        const nextObjectId = feature?.properties?.id ? String(feature.properties.id) : null
-        const nextClusterId = feature?.properties?.cluster_id !== undefined
-          ? Number(feature.properties.cluster_id)
-          : null
-        setHoveredId((current) => (current === nextObjectId ? current : nextObjectId))
-        setHoveredClusterId((current) => (current === nextClusterId ? current : nextClusterId))
+      // MapLibre может присылать десятки mousemove за кадр. Запрашиваем отрисованные
+      // объекты не чаще одного раза за animation frame и всегда берём свежую точку.
+      map.on('mousemove', (event) => {
+        latestHoverPoint = [event.point.x, event.point.y]
+        if (hoverFrame !== null) return
+        hoverFrame = window.requestAnimationFrame(() => {
+          hoverFrame = null
+          const point = latestHoverPoint
+          if (!point) return
+          const layers = ['objects-core', 'clusters-core'].filter((layer) => map.getLayer(layer))
+          if (!layers.length) return
+          const features = map.queryRenderedFeatures(point, { layers })
+          map.getCanvas().style.cursor = features.length ? 'pointer' : ''
+          const feature = features[0]
+          const nextObjectId = feature?.properties?.id ? String(feature.properties.id) : null
+          const nextClusterId = feature?.properties?.cluster_id !== undefined
+            ? Number(feature.properties.cluster_id)
+            : null
+          setHoveredId((current) => (current === nextObjectId ? current : nextObjectId))
+          setHoveredClusterId((current) => (current === nextClusterId ? current : nextClusterId))
+        })
       })
 
       map.getCanvas().addEventListener('mouseleave', () => {
+        latestHoverPoint = null
+        if (hoverFrame !== null) {
+          window.cancelAnimationFrame(hoverFrame)
+          hoverFrame = null
+        }
         map.getCanvas().style.cursor = ''
         setHoveredId(null)
         setHoveredClusterId(null)
@@ -207,6 +284,7 @@ export default function MapView({
 
     return () => {
       cancelled = true
+      if (hoverFrame !== null) window.cancelAnimationFrame(hoverFrame)
       mapRef.current?.remove()
       mapRef.current = null
     }
@@ -530,19 +608,75 @@ export default function MapView({
     }
   }, [ready, fitDistrict, districts])
 
+  // Back/Forward и открытие shareable URL полностью восстанавливают камеру.
+  // Проверка допуска не даёт управляемому prop зациклить собственный moveend.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || cameraMatches(map, camera)) return
+    const center = camera.center ?? { lng: TYUMEN_CENTER[0], lat: TYUMEN_CENTER[1] }
+    const pitch = camera.pitch ?? 0
+    cameraBeforePerspectiveRef.current = null
+    setPerspective(pitch > 0.5)
+    if (map.getLayer('buildings-3d')) {
+      map.setLayoutProperty('buildings-3d', 'visibility', pitch > 0.5 ? 'visible' : 'none')
+    }
+    map.jumpTo({
+      center: [center.lng, center.lat],
+      zoom: camera.zoom ?? TYUMEN_OVERVIEW_ZOOM,
+      bearing: camera.bearing ?? 0,
+      pitch,
+    })
+  }, [ready, camera])
+
   const togglePerspective = () => {
     const map = mapRef.current
     if (!map || !ready) return
     const next = !perspective
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (next) {
+      const center = map.getCenter()
+      cameraBeforePerspectiveRef.current = {
+        center: [center.lng, center.lat],
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+      }
+    }
     setPerspective(next)
     if (map.getLayer('buildings-3d')) {
       map.setLayoutProperty('buildings-3d', 'visibility', next ? 'visible' : 'none')
     }
+    if (next) {
+      map.easeTo({
+        pitch: 48,
+        bearing: -12,
+        zoom: Math.max(map.getZoom(), 14.4),
+        duration: reducedMotion ? 0 : 720,
+      })
+      return
+    }
+    const previousCamera = cameraBeforePerspectiveRef.current
+    cameraBeforePerspectiveRef.current = null
     map.easeTo({
-      pitch: next ? 48 : 0,
-      bearing: next ? -12 : 0,
-      zoom: next ? Math.max(map.getZoom(), 14.4) : map.getZoom(),
+      ...(previousCamera ?? { pitch: 0, bearing: 0 }),
+      duration: reducedMotion ? 0 : 720,
+    })
+  }
+
+  const showTyumenOverview = () => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    cameraBeforePerspectiveRef.current = null
+    setPerspective(false)
+    if (map.getLayer('buildings-3d')) {
+      map.setLayoutProperty('buildings-3d', 'visibility', 'none')
+    }
+    map.easeTo({
+      center: TYUMEN_CENTER,
+      zoom: TYUMEN_OVERVIEW_ZOOM,
+      pitch: 0,
+      bearing: 0,
       duration: reducedMotion ? 0 : 720,
     })
   }
@@ -553,19 +687,34 @@ export default function MapView({
   return (
     <div className="absolute inset-0">
       <div ref={containerRef} className="h-full w-full" />
-      <button
-        type="button"
-        onClick={togglePerspective}
-        aria-label={perspective ? 'Вернуть плоский вид карты' : 'Включить перспективный вид карты'}
-        aria-pressed={perspective}
-        className={`map-perspective-toggle ${perspective ? 'map-perspective-toggle--active' : ''}`}
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path d="m3.5 8 8.5-4 8.5 4-8.5 4-8.5-4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-          <path d="m3.5 12 8.5 4 8.5-4M3.5 16l8.5 4 8.5-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span>{perspective ? '2D' : '3D'}</span>
-      </button>
+      <div className="map-view-tools">
+        <button
+          type="button"
+          onClick={showTyumenOverview}
+          aria-label="Показать всю Тюмень"
+          title="Вся Тюмень"
+          className="map-home-toggle"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+            <path d="M8 9.5h8M8 13h8M12 3v18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span>Город</span>
+        </button>
+        <button
+          type="button"
+          onClick={togglePerspective}
+          aria-label={perspective ? 'Вернуть плоский вид карты' : 'Включить перспективный вид карты'}
+          aria-pressed={perspective}
+          className={`map-perspective-toggle ${perspective ? 'map-perspective-toggle--active' : ''}`}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="m3.5 8 8.5-4 8.5 4-8.5 4-8.5-4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+            <path d="m3.5 12 8.5 4 8.5-4M3.5 16l8.5 4 8.5-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>{perspective ? '2D' : '3D'}</span>
+        </button>
+      </div>
     </div>
   )
 }

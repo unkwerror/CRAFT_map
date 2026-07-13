@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AdminEventRow, AdminObjectRow } from '@/lib/types'
+import type { AdminEventRow, AdminObjectRow, EventStatus } from '@/lib/types'
 import EventObjectPicker from './EventObjectPicker'
 
 const inputCls =
@@ -14,6 +14,16 @@ interface FormState {
   description: string
   startsOn: string
   endsOn: string
+  startsAt: string
+  endsAt: string
+  timezone: string
+  venue: string
+  organizer: string
+  priceInfo: string
+  registrationUrl: string
+  accessibility: string
+  status: EventStatus
+  published: boolean
 }
 
 const emptyForm: FormState = {
@@ -23,6 +33,16 @@ const emptyForm: FormState = {
   description: '',
   startsOn: '',
   endsOn: '',
+  startsAt: '',
+  endsAt: '',
+  timezone: 'Asia/Yekaterinburg',
+  venue: '',
+  organizer: '',
+  priceInfo: '',
+  registrationUrl: '',
+  accessibility: '',
+  status: 'scheduled',
+  published: true,
 }
 
 /** Мероприятия у памятников: ручной ввод администратором (список + форма) */
@@ -81,6 +101,16 @@ export default function EventsManager() {
       description: form.description || null,
       startsOn: form.startsOn,
       endsOn: form.endsOn || form.startsOn,
+      startsAt: form.startsAt || null,
+      endsAt: form.endsAt || null,
+      timezone: form.timezone,
+      venue: form.venue || null,
+      organizer: form.organizer || null,
+      priceInfo: form.priceInfo || null,
+      registrationUrl: form.registrationUrl || null,
+      accessibility: form.accessibility || null,
+      status: form.status,
+      published: form.published,
     }
     const res = await fetch(form.id ? `/api/admin/events/${form.id}` : '/api/admin/events', {
       method: form.id ? 'PUT' : 'POST',
@@ -188,6 +218,110 @@ export default function EventsManager() {
             </label>
           </div>
 
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label>
+              <span className="mb-1 block text-sm font-medium">Время начала</span>
+              <input
+                type="time"
+                value={form.startsAt}
+                onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+                className={inputCls}
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-sm font-medium">Время окончания</span>
+              <input
+                type="time"
+                value={form.endsAt}
+                min={form.startsOn === (form.endsOn || form.startsOn) ? form.startsAt : undefined}
+                onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
+                className={inputCls}
+              />
+              <span className="mt-1 block text-xs text-slate-500">Часовой пояс: Тюмень (UTC+5)</span>
+            </label>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label>
+              <span className="mb-1 block text-sm font-medium">Площадка</span>
+              <input
+                maxLength={500}
+                value={form.venue}
+                onChange={(e) => setForm({ ...form, venue: e.target.value })}
+                placeholder="Например: Сквер Победы"
+                className={inputCls}
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-sm font-medium">Организатор</span>
+              <input
+                maxLength={300}
+                value={form.organizer}
+                onChange={(e) => setForm({ ...form, organizer: e.target.value })}
+                className={inputCls}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label>
+              <span className="mb-1 block text-sm font-medium">Стоимость</span>
+              <input
+                maxLength={200}
+                value={form.priceInfo}
+                onChange={(e) => setForm({ ...form, priceInfo: e.target.value })}
+                placeholder="Бесплатно или 500 ₽"
+                className={inputCls}
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-sm font-medium">Ссылка на регистрацию</span>
+              <input
+                type="url"
+                maxLength={1000}
+                value={form.registrationUrl}
+                onChange={(e) => setForm({ ...form, registrationUrl: e.target.value })}
+                placeholder="https://…"
+                className={inputCls}
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Доступность</span>
+            <textarea
+              rows={2}
+              maxLength={2000}
+              value={form.accessibility}
+              onChange={(e) => setForm({ ...form, accessibility: e.target.value })}
+              placeholder="Пандус, сурдоперевод, доступная парковка…"
+              className={inputCls}
+            />
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label>
+              <span className="mb-1 block text-sm font-medium">Статус</span>
+              <select
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value as EventStatus })}
+                className={inputCls}
+              >
+                <option value="scheduled">Запланировано</option>
+                <option value="postponed">Перенесено</option>
+                <option value="cancelled">Отменено</option>
+              </select>
+            </label>
+            <label className="flex min-h-11 items-center gap-2 self-end rounded-lg border border-slate-200 px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.published}
+                onChange={(e) => setForm({ ...form, published: e.target.checked })}
+              />
+              Опубликовано в афише
+            </label>
+          </div>
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex gap-3 pt-1">
@@ -234,6 +368,11 @@ export default function EventsManager() {
                 <tr key={e.id} className={`border-b border-slate-100 ${past ? 'opacity-50' : ''}`}>
                   <td className="whitespace-nowrap px-4 py-3">
                     {e.startsOn === e.endsOn ? e.startsOn : `${e.startsOn} — ${e.endsOn}`}
+                    {e.startsAt && (
+                      <span className="block text-xs text-slate-500">
+                        {e.startsAt}{e.endsAt ? `–${e.endsAt}` : ''}
+                      </span>
+                    )}
                     {active && (
                       <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
                         сегодня
@@ -242,6 +381,16 @@ export default function EventsManager() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-medium">{e.title}</span>
+                    <span className="ml-2 inline-flex gap-1 align-middle">
+                      {e.status !== 'scheduled' && (
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${e.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {e.status === 'cancelled' ? 'отменено' : 'перенесено'}
+                        </span>
+                      )}
+                      {!e.published && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">черновик</span>
+                      )}
+                    </span>
                     {e.description && (
                       <span className="block max-w-md truncate text-xs text-slate-500">{e.description}</span>
                     )}
@@ -260,6 +409,16 @@ export default function EventsManager() {
                           description: e.description ?? '',
                           startsOn: e.startsOn,
                           endsOn: e.endsOn,
+                          startsAt: e.startsAt ?? '',
+                          endsAt: e.endsAt ?? '',
+                          timezone: e.timezone,
+                          venue: e.venue ?? '',
+                          organizer: e.organizer ?? '',
+                          priceInfo: e.priceInfo ?? '',
+                          registrationUrl: e.registrationUrl ?? '',
+                          accessibility: e.accessibility ?? '',
+                          status: e.status,
+                          published: e.published,
                         })
                       }}
                       className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100"

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { users } from '@/lib/schema'
+import { appendAdminAudit } from '@/lib/audit'
+import { pg } from '@/lib/db'
 import { requireRole } from '@/lib/guard'
 import { uuidSchema } from '@/lib/validation'
 
@@ -20,7 +19,19 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Нельзя удалить самого себя' }, { status: 400 })
   }
 
-  const rows = await db.delete(users).where(eq(users.id, id)).returning({ id: users.id })
-  if (!rows.length) return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
+  const row = await pg.begin(async (sql) => {
+    const [deleted] = await sql<{ id: string }[]>`
+      delete from users where id = ${id} returning id`
+    if (!deleted) return null
+    await appendAdminAudit(sql, guard.session, {
+      action: 'delete',
+      entity: 'user',
+      entityId: deleted.id,
+    })
+    return deleted
+  })
+  if (!row) {
+    return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
+  }
   return NextResponse.json({ ok: true })
 }

@@ -12,7 +12,8 @@ const credentialsSchema = z.object({
 })
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: 'jwt' },
+  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
+  jwt: { maxAge: 8 * 60 * 60 },
   trustHost: true,
   secret: process.env.AUTH_SECRET ?? (process.env.NODE_ENV !== 'production' ? 'dev-secret' : undefined),
   pages: { signIn: '/admin/login' },
