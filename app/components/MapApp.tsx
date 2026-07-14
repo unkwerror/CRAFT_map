@@ -245,7 +245,7 @@ export default function MapApp({ categories }: Props) {
 
   useEffect(() => {
     if (mapReady) return
-    const timer = window.setTimeout(() => setMapIssue(true), 12_000)
+    const timer = window.setTimeout(() => setMapIssue(true), 8_000)
     return () => window.clearTimeout(timer)
   }, [mapReady])
 
@@ -525,8 +525,8 @@ export default function MapApp({ categories }: Props) {
       : null
   const issueMessage = mapIssue
     ? dataFailureMessage
-      ? `Не удалось загрузить карту. ${dataFailureMessage}`
-      : 'Не удалось загрузить карту'
+      ? `Не удалось загрузить подложку карты. ${dataFailureMessage}`
+      : 'Не удалось загрузить подложку карты'
     : dataFailureMessage
   const hasLoadedObjects = (objectsFC?.features.length ?? 0) > 0
   const noFilterResults = Boolean(
@@ -643,8 +643,25 @@ export default function MapApp({ categories }: Props) {
         onError={() => setMapIssue(true)}
       />
 
-      <header className={`map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5 ${selectedId || (activeView === 'map' && placesView === 'list') ? 'md:pr-[480px] xl:pr-[540px]' : activeView === 'events' ? 'xl:pr-[540px]' : ''}`}>
+      <header
+        className={[
+          'map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5',
+          selectedId || (activeView === 'map' && placesView === 'list')
+            ? 'map-toolbar--with-panel-md map-toolbar--with-panel-xl'
+            : activeView === 'events'
+              ? 'map-toolbar--with-panel-xl'
+              : '',
+        ].join(' ')}
+      >
         <div className="mx-auto flex max-w-[1480px] items-start gap-3">
+          <div
+            className="brand-crest-compact panel pointer-events-auto 2xl:hidden"
+            title="Память Тюмени"
+            aria-label="Память Тюмени"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/gerb-tyumen.svg" alt="" aria-hidden className="h-7 w-auto" />
+          </div>
           <div className="brand-panel panel pointer-events-auto hidden h-14 w-[252px] shrink-0 items-center gap-3 rounded-2xl px-3.5 2xl:flex">
             <div className="brand-panel__crest">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -780,8 +797,16 @@ export default function MapApp({ categories }: Props) {
 
       {showPreloader && activeView === 'map' && !selectedId && (
         <MapPreloader
-          progress={12 + (dataReady ? 44 : 0) + (mapReady || mapIssue ? 44 : 0)}
-          label={!dataReady ? 'Загружаем объекты' : !mapReady && !mapIssue ? 'Настраиваем карту' : mapIssue ? 'Проверяем соединение' : 'Готово'}
+          indeterminate
+          label={
+            !dataReady
+              ? 'Загружаем объекты'
+              : !mapReady && !mapIssue
+                ? 'Настраиваем карту'
+                : mapIssue
+                  ? 'Проверяем соединение'
+                  : 'Готово'
+          }
           leaving={(mapReady || mapIssue) && dataReady}
         />
       )}

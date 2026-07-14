@@ -1,5 +1,7 @@
 interface Props {
   progress?: number
+  /** Честный indeterminate-бар вместо фиктивного процента загрузки. */
+  indeterminate?: boolean
   label?: string
   leaving?: boolean
 }
@@ -7,6 +9,7 @@ interface Props {
 /** Полноэкранное состояние загрузки карты: используется и серверным loading.tsx. */
 export default function MapPreloader({
   progress = 18,
+  indeterminate = false,
   label = 'Подготавливаем карту',
   leaving = false,
 }: Props) {
@@ -25,8 +28,11 @@ export default function MapPreloader({
         </div>
         <p className="map-preloader__title">Память Тюмени</p>
         <p className="map-preloader__label">{label}</p>
-        <div className="map-preloader__track" aria-hidden>
-          <span style={{ width: `${Math.max(8, Math.min(progress, 100))}%` }} />
+        <div
+          className={`map-preloader__track ${indeterminate ? 'map-preloader__track--indeterminate' : ''}`}
+          aria-hidden
+        >
+          <span style={indeterminate ? undefined : { width: `${Math.max(8, Math.min(progress, 100))}%` }} />
         </div>
       </div>
     </div>

@@ -35,7 +35,11 @@ function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () =>
         if ((error as DOMException).name === 'AbortError') return
       }
     }
-    await navigator.clipboard?.writeText(url)
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      window.prompt('Скопируйте ссылку', url)
+    }
   }
 
   return (
@@ -237,7 +241,7 @@ export default function EventsPanel({ suspended, onClose, onSelectObject }: Prop
       aria-hidden={suspended || undefined}
       aria-busy={!events && !error}
       aria-label="Предстоящие мероприятия"
-      className={`events-panel panel-scroll absolute z-[12] overflow-y-auto outline-none max-xl:inset-0 xl:right-0 xl:top-0 xl:h-full xl:w-[clamp(460px,38vw,520px)] xl:border-l xl:border-[var(--hairline)] ${suspended ? 'events-panel--suspended' : ''}`}
+      className={`events-panel map-side-panel-xl panel-scroll absolute z-[12] overflow-y-auto outline-none max-xl:inset-0 xl:right-0 xl:top-0 xl:h-full xl:border-l xl:border-[var(--hairline)] ${suspended ? 'events-panel--suspended' : ''}`}
     >
       <div className="events-panel__header">
         <div className="flex items-start justify-between gap-4">

@@ -1,16 +1,31 @@
 import { z } from 'zod'
 
+/** Только локальные загруженные файлы: /uploads/<safe-name>. */
+const UPLOADS_PATH_RE = /^\/uploads\/[a-zA-Z0-9._-]+$/
+
+export const uploadsPathSchema = z
+  .string()
+  .min(1)
+  .max(500)
+  .regex(UPLOADS_PATH_RE, 'Допустимы только локальные файлы /uploads/…')
+
+/** Опциональный путь /uploads/…; пустая строка и null → null. */
+export const optionalUploadsPathSchema = z
+  .union([uploadsPathSchema, z.literal(''), z.null()])
+  .optional()
+  .transform((value) => (value && value.length > 0 ? value : null))
+
 export const photoSchema = z.object({
-  original: z.string().min(1).max(500),
-  thumb: z.string().min(1).max(500),
+  original: uploadsPathSchema,
+  thumb: uploadsPathSchema,
   alt: z.string().max(300).optional(),
 })
 
 export const videoSchema = z.object({
-  src: z.string().min(1).max(500),
-  poster: z.string().max(500).optional(),
+  src: uploadsPathSchema,
+  poster: optionalUploadsPathSchema,
   alt: z.string().max(300).optional(),
-  captions: z.string().max(500).optional(),
+  captions: optionalUploadsPathSchema,
 })
 
 export const sectionSchema = z.object({
@@ -27,11 +42,11 @@ export const objectInputSchema = z.object({
   lat: z.number().min(-90).max(90),
   photos: z.array(photoSchema).max(20).default([]),
   videos: z.array(videoSchema).max(10).default([]),
-  audioUrl: z.string().max(500).nullish(),
+  audioUrl: optionalUploadsPathSchema,
   audioText: z.string().max(20000).nullish(),
   rating: z.number().min(0).max(5).nullish(),
   sections: z.array(sectionSchema).max(20).default([]),
-  modelUrl: z.string().max(500).nullish(),
+  modelUrl: optionalUploadsPathSchema,
   published: z.boolean().default(true),
   sortWeight: z.number().int().min(-1000).max(1000).default(0),
 })

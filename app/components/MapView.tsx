@@ -103,6 +103,13 @@ function cameraMatches(map: MLMap, camera: MapCameraState): boolean {
   )
 }
 
+function errorMessageFromMapEvent(event: { error?: Error | string; message?: string }): string {
+  if (typeof event.error === 'string') return event.error
+  if (event.error instanceof Error) return event.error.message
+  if (typeof event.message === 'string') return event.message
+  return ''
+}
+
 export default function MapView({
   categories,
   objects,
@@ -174,6 +181,24 @@ export default function MapView({
         }),
         'bottom-right'
       )
+      let styleLoadFailed = false
+      let criticalErrors = 0
+      map.on('error', (event) => {
+        // Отдельные 404 тайлов не должны ронять карту; серия критических ошибок — да.
+        const message = String(errorMessageFromMapEvent(event)).toLowerCase()
+        const isTileNoise =
+          message.includes('tile') ||
+          message.includes('404') ||
+          message.includes('failed to fetch') ||
+          message.includes('networkerror')
+        if (isTileNoise && !styleLoadFailed) {
+          criticalErrors += 1
+          if (criticalErrors < 8) return
+        }
+        styleLoadFailed = true
+        onErrorRef.current?.()
+      })
+
       map.on('load', () => {
         // В перспективном режиме локальная векторная подложка получает объёмные здания.
         // На растровом fallback слой просто не создаётся.
@@ -317,7 +342,7 @@ export default function MapView({
       id: 'districts-line',
       type: 'line',
       source: 'districts',
-      paint: { 'line-color': '#a9bdcb', 'line-width': 1.1, 'line-opacity': 0.34 },
+      paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 },
     })
     map.addLayer({
       id: 'districts-active-line',
@@ -326,8 +351,8 @@ export default function MapView({
       filter: ['==', ['get', 'id'], -1],
       paint: {
         'line-color': '#f4bb62',
-        'line-width': 2.2,
-        'line-opacity': 0.88,
+        'line-width': 2.6,
+        'line-opacity': 0.95,
       },
     })
     map.addLayer({
@@ -344,9 +369,9 @@ export default function MapView({
         'text-letter-spacing': 0.12,
       },
       paint: {
-        'text-color': '#b9cad6',
+        'text-color': '#e8f0f6',
         'text-halo-color': '#142b3e',
-        'text-halo-width': 1.2,
+        'text-halo-width': 1.5,
         'text-opacity': 0.58,
       },
     })

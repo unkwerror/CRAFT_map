@@ -210,7 +210,7 @@ export default function PlacesListPanel({
       data-places-list-panel
       tabIndex={-1}
       aria-labelledby="places-list-title"
-      className="places-list-panel panel-scroll absolute z-[12] overflow-y-auto outline-none max-md:inset-0 md:right-0 md:top-0 md:h-full md:w-[clamp(460px,38vw,520px)] md:border-l md:border-[var(--hairline)]"
+      className="places-list-panel map-side-panel-md panel-scroll absolute z-[12] overflow-y-auto outline-none max-md:inset-0 md:right-0 md:top-0 md:h-full md:border-l md:border-[var(--hairline)]"
     >
       <div className="places-list-panel__header">
         <div className="flex items-start justify-between gap-4">

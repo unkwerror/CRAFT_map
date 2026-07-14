@@ -31,6 +31,62 @@ describe('objectInputSchema', () => {
   it('rejects coordinates outside the globe', () => {
     expect(objectInputSchema.safeParse({ ...validObject, lat: 100 }).success).toBe(false)
   })
+
+  it('accepts local /uploads media paths', () => {
+    const result = objectInputSchema.parse({
+      ...validObject,
+      photos: [{
+        original: '/uploads/123e4567-e89b-42d3-a456-426614174000.webp',
+        thumb: '/uploads/123e4567-e89b-42d3-a456-426614174000_thumb.webp',
+      }],
+      videos: [{
+        src: '/uploads/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.mp4',
+        poster: '/uploads/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.webp',
+        captions: '/uploads/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.vtt',
+      }],
+      audioUrl: '/uploads/audio-1.mp3',
+      modelUrl: '/uploads/model-1.glb',
+    })
+    expect(result.photos).toHaveLength(1)
+    expect(result.videos[0]?.captions).toBe('/uploads/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.vtt')
+    expect(result.audioUrl).toBe('/uploads/audio-1.mp3')
+    expect(result.modelUrl).toBe('/uploads/model-1.glb')
+  })
+
+  it('rejects external or unsafe media URLs', () => {
+    expect(objectInputSchema.safeParse({
+      ...validObject,
+      photos: [{ original: 'https://evil.example/x.jpg', thumb: '/uploads/ok.webp' }],
+    }).success).toBe(false)
+
+    expect(objectInputSchema.safeParse({
+      ...validObject,
+      photos: [{ original: '/uploads/../secret.webp', thumb: '/uploads/ok.webp' }],
+    }).success).toBe(false)
+
+    expect(objectInputSchema.safeParse({
+      ...validObject,
+      audioUrl: 'https://cdn.example/audio.mp3',
+    }).success).toBe(false)
+
+    expect(objectInputSchema.safeParse({
+      ...validObject,
+      modelUrl: '/etc/passwd',
+    }).success).toBe(false)
+  })
+
+  it('normalizes empty optional media paths to null', () => {
+    const result = objectInputSchema.parse({
+      ...validObject,
+      audioUrl: '',
+      modelUrl: null,
+      videos: [{ src: '/uploads/clip.mp4', poster: '', captions: '' }],
+    })
+    expect(result.audioUrl).toBeNull()
+    expect(result.modelUrl).toBeNull()
+    expect(result.videos[0]?.poster).toBeNull()
+    expect(result.videos[0]?.captions).toBeNull()
+  })
 })
 
 describe('districtLookupQuerySchema', () => {

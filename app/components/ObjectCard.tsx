@@ -211,16 +211,16 @@ export default function ObjectCard({ id, onClose }: Props) {
       <aside
         ref={panelRef}
         tabIndex={-1}
-        role="dialog"
+        role={mobileModal ? 'dialog' : 'complementary'}
         aria-modal={mobileModal ? true : undefined}
         aria-labelledby={data ? titleId : undefined}
         aria-label={data ? undefined : 'Карточка объекта'}
-        className="object-sheet panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)] outline-none
+        className="object-sheet map-side-panel-md panel-scroll absolute z-20 overflow-y-auto bg-[var(--surface)] text-[var(--ink)] outline-none
                    max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[92dvh] max-md:rounded-t-[26px]
-                   md:right-0 md:top-0 md:h-full md:w-[clamp(460px,38vw,520px)] md:border-l md:border-[var(--hairline)]"
+                   md:right-0 md:top-0 md:h-full md:border-l md:border-[var(--hairline)]"
       >
       <div
-        className="absolute left-1/2 top-0 z-20 flex h-7 w-20 -translate-x-1/2 items-center justify-center md:hidden"
+        className="absolute inset-x-0 top-0 z-20 flex h-12 items-start justify-center pt-2 md:hidden"
         onTouchStart={(event) => {
           sheetTouchY.current = event.touches[0]?.clientY ?? null
         }}
@@ -238,7 +238,7 @@ export default function ObjectCard({ id, onClose }: Props) {
         type="button"
         onClick={onClose}
         aria-label="Закрыть"
-        className="btn-ghost absolute right-3 top-3 z-10 h-11 w-11 text-base leading-none"
+        className="btn-ghost absolute right-3 top-3 z-30 h-11 w-11 text-base leading-none"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
           <path d="m4 4 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />

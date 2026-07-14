@@ -255,6 +255,7 @@ export default function ObjectMediaGallery({ objectId, title, photos, videos, mo
               src={item.src}
               alt={item.label}
               decoding="async"
+              fetchPriority="high"
               onError={() => setMediaFailed(true)}
               className="object-media h-full w-full object-cover"
             />
@@ -269,8 +270,28 @@ export default function ObjectMediaGallery({ objectId, title, photos, videos, mo
 
         {view === 'media' && media.length > 1 && (
           <>
-            <button type="button" onClick={previous} aria-label="Предыдущее медиа" className="btn-ghost absolute left-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 text-lg sm:flex">‹</button>
-            <button type="button" onClick={next} aria-label="Следующее медиа" className="btn-ghost absolute right-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 text-lg sm:flex">›</button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                previous()
+              }}
+              aria-label="Предыдущее медиа"
+              className="btn-ghost absolute left-2 top-1/2 z-[1] flex h-11 w-11 -translate-y-1/2 text-lg"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                next()
+              }}
+              aria-label="Следующее медиа"
+              className="btn-ghost absolute right-2 top-1/2 z-[1] flex h-11 w-11 -translate-y-1/2 text-lg"
+            >
+              ›
+            </button>
           </>
         )}
       </div>

@@ -294,7 +294,13 @@ export default function SearchBar({
     }
   }, [])
 
-  useEffect(() => setActive(0), [query, search.suggestions.length])
+  const shownObjectCount = search.suggestions.filter((item) => item.kind === 'object').length
+  const showAllOption = search.objectMatchCount > shownObjectCount
+  const navigableCount = search.suggestions.length + (showAllOption ? 1 : 0)
+  const showAllIndex = showAllOption ? search.suggestions.length : -1
+  const showAllOptionId = `${panelId}-option-show-all`
+
+  useEffect(() => setActive(0), [query, search.suggestions.length, showAllOption])
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -310,18 +316,23 @@ export default function SearchBar({
   }, [])
 
   useEffect(() => {
-    if (!open || !search.suggestions.length) return
-    document.getElementById(`${panelId}-option-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [active, open, panelId, search.suggestions.length])
+    if (!open || navigableCount === 0) return
+    const targetId = active === showAllIndex ? showAllOptionId : `${panelId}-option-${active}`
+    document.getElementById(targetId)?.scrollIntoView({ block: 'nearest' })
+  }, [active, open, panelId, navigableCount, showAllIndex, showAllOptionId])
 
   useEffect(() => {
     if (!open || query.trim().length < 2) {
       onPreviewObject(null)
       return
     }
+    if (active === showAllIndex) {
+      onPreviewObject(null)
+      return
+    }
     const suggestion = search.suggestions[active]
     onPreviewObject(suggestion?.kind === 'object' ? suggestion.id : null)
-  }, [active, open, query, search.suggestions, onPreviewObject])
+  }, [active, open, query, search.suggestions, onPreviewObject, showAllIndex])
 
   useEffect(() => {
     if (!open) return
@@ -370,11 +381,17 @@ export default function SearchBar({
     onPreviewObject(null)
   }
 
+  const pickShowAll = () => {
+    onShowAllObjects(search.objectMatchIds, query.trim())
+    setOpen(false)
+    onPreviewObject(null)
+  }
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open || !search.suggestions.length) return
+    if (!open || navigableCount === 0) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setActive((index) => Math.min(index + 1, search.suggestions.length - 1))
+      setActive((index) => Math.min(index + 1, navigableCount - 1))
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
       setActive((index) => Math.max(index - 1, 0))
@@ -383,16 +400,20 @@ export default function SearchBar({
       setActive(0)
     } else if (event.key === 'End') {
       event.preventDefault()
-      setActive(search.suggestions.length - 1)
+      setActive(navigableCount - 1)
     } else if (event.key === 'Enter') {
       event.preventDefault()
+      if (active === showAllIndex) {
+        pickShowAll()
+        return
+      }
       const suggestion = search.suggestions[active] ?? search.suggestions[0]
       if (suggestion) pick(suggestion)
     }
   }
 
   const normalizedLength = query.trim().length
-  const listboxOpen = open && normalizedLength >= 2 && search.suggestions.length > 0
+  const listboxOpen = open && normalizedLength >= 2 && navigableCount > 0
   const showLoading = open && loading && normalizedLength >= 2
   const showEmpty = open && !loading && normalizedLength >= 2 && search.suggestions.length === 0
   const showQuick = open && query.trim().length === 0
@@ -484,7 +505,15 @@ export default function SearchBar({
           aria-expanded={open}
           aria-controls={open ? panelId : undefined}
           aria-autocomplete="list"
-          aria-activedescendant={listboxOpen && search.suggestions[active] ? `${panelId}-option-${active}` : undefined}
+          aria-activedescendant={
+            listboxOpen
+              ? active === showAllIndex
+                ? showAllOptionId
+                : search.suggestions[active]
+                  ? `${panelId}-option-${active}`
+                  : undefined
+              : undefined
+          }
           autoComplete="off"
           className="w-full bg-transparent text-[15px] font-medium text-[var(--ink)] outline-none placeholder:font-normal placeholder:text-[var(--ink-subtle)] [&::-webkit-search-cancel-button]:hidden"
         />
@@ -572,7 +601,7 @@ export default function SearchBar({
 
               {featured.length > 0 && (
                 <section className="border-t border-white/[0.07] pt-3">
-                  <p className="search-group-title px-1">Интересные места</p>
+                  <p className="search-group-title px-1">Места на карте</p>
                   <div className="mt-1.5">
                     {featured.map((suggestion) => (
                       <button
@@ -635,17 +664,18 @@ export default function SearchBar({
                   )}
                 </div>
                 {group.items.map((suggestion) => renderResult(suggestion, search.suggestions.indexOf(suggestion)))}
-                {group.label === 'Места' && search.objectMatchCount > group.items.length && (
+                {group.label === 'Места' && showAllOption && (
                   <button
+                    id={showAllOptionId}
                     type="button"
                     role="option"
-                    aria-selected="false"
-                    onClick={() => {
-                      onShowAllObjects(search.objectMatchIds, query.trim())
-                      setOpen(false)
-                      onPreviewObject(null)
-                    }}
-                    className="mx-1.5 my-1 flex min-h-11 w-[calc(100%-0.75rem)] items-center justify-center rounded-xl border border-[var(--hairline-strong)] px-3 text-[13px] font-semibold text-[var(--accent)] hover:bg-white/[0.05]"
+                    aria-selected={active === showAllIndex}
+                    tabIndex={-1}
+                    onClick={pickShowAll}
+                    onMouseEnter={() => setActive(showAllIndex)}
+                    className={`mx-1.5 my-1 flex min-h-11 w-[calc(100%-0.75rem)] items-center justify-center rounded-xl border border-[var(--hairline-strong)] px-3 text-[13px] font-semibold text-[var(--accent)] hover:bg-white/[0.05] ${
+                      active === showAllIndex ? 'search-result--active bg-white/[0.05]' : ''
+                    }`}
                   >
                     Показать все {search.objectMatchCount} в списке
                   </button>

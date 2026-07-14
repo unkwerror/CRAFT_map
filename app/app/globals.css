@@ -165,9 +165,78 @@ textarea {
   --accent: #efad45;
   --accent-hover: #f6ba59;
   --accent-ink: #18222a;
+  /* Единая ширина правой панели (карточка / список / афиша) и отступ тулбара. */
+  --map-side-panel-width: clamp(460px, 38vw, 520px);
+  --map-side-panel-gap: 1.25rem;
   color: var(--ink);
   isolation: isolate;
   overscroll-behavior: none;
+}
+@media (min-width: 768px) {
+  .map-toolbar--with-panel-md {
+    padding-right: calc(var(--map-side-panel-width) + var(--map-side-panel-gap));
+  }
+  .map-side-panel-md {
+    width: var(--map-side-panel-width);
+  }
+}
+@media (min-width: 1280px) {
+  .map-toolbar--with-panel-xl {
+    padding-right: calc(var(--map-side-panel-width) + var(--map-side-panel-gap));
+  }
+  .map-side-panel-xl {
+    width: var(--map-side-panel-width);
+  }
+}
+.brand-crest-compact {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 1rem;
+  box-shadow: 0 14px 34px -22px rgba(2, 8, 13, 0.85);
+}
+.brand-crest-compact img {
+  width: 1.75rem;
+  height: auto;
+}
+.category-strip-wrap {
+  position: relative;
+}
+.category-strip-wrap::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0.5rem;
+  z-index: 1;
+  width: 2.25rem;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(90deg, transparent, rgba(13, 25, 34, 0.88));
+}
+.category-strip-wrap--no-fade::after {
+  opacity: 0;
+}
+.map-preloader__track--indeterminate span {
+  width: 38% !important;
+  transition: none;
+  animation: preloader-indeterminate 1.35s ease-in-out infinite;
+}
+@keyframes preloader-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-preloader__track--indeterminate span {
+    animation: none;
+    width: 56% !important;
+    transform: none;
+  }
 }
 .map-shell::before {
   position: absolute;
