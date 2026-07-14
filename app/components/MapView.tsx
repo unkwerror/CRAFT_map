@@ -135,7 +135,7 @@ export default function MapView({
   districts,
   selected,
   highlightedId,
-  activeDistrictId: _activeDistrictId,
+  activeDistrictId,
   fitDistrict,
   camera,
   onSelect,
@@ -350,6 +350,82 @@ export default function MapView({
       mapRef.current = null
     }
   }, [])
+
+  // Округа: без постоянных контуров. Подсветка только при выборе округа в поиске.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !districts) return
+    const src = map.getSource('districts') as maplibregl.GeoJSONSource | undefined
+    if (src) {
+      src.setData(districts)
+      return
+    }
+    map.addSource('districts', { type: 'geojson', data: districts })
+    // Слои под маркерами, если они уже созданы.
+    const before = map.getLayer('objects-event-pulse') ? 'objects-event-pulse' : undefined
+    map.addLayer(
+      {
+        id: 'districts-active-fill',
+        type: 'fill',
+        source: 'districts',
+        filter: ['==', ['get', 'id'], -1],
+        paint: {
+          'fill-color': '#efad45',
+          'fill-opacity': 0.14,
+        },
+      },
+      before
+    )
+    map.addLayer(
+      {
+        id: 'districts-active-line',
+        type: 'line',
+        source: 'districts',
+        filter: ['==', ['get', 'id'], -1],
+        paint: {
+          'line-color': '#f4bb62',
+          'line-width': 2.4,
+          'line-opacity': 0.95,
+        },
+      },
+      before
+    )
+    map.addLayer(
+      {
+        id: 'districts-active-label',
+        type: 'symbol',
+        source: 'districts',
+        filter: ['==', ['get', 'id'], -1],
+        layout: {
+          'text-field': ['concat', ['get', 'name'], ' округ'],
+          'text-font': labelFontRef.current,
+          'text-size': 13,
+          'text-transform': 'uppercase',
+          'text-letter-spacing': 0.08,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#f6e2b3',
+          'text-halo-color': '#142b3e',
+          'text-halo-width': 1.5,
+        },
+      },
+      before
+    )
+  }, [ready, districts])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const filter: maplibregl.FilterSpecification = [
+      '==',
+      ['get', 'id'],
+      activeDistrictId ?? -1,
+    ]
+    if (map.getLayer('districts-active-fill')) map.setFilter('districts-active-fill', filter)
+    if (map.getLayer('districts-active-line')) map.setFilter('districts-active-line', filter)
+    if (map.getLayer('districts-active-label')) map.setFilter('districts-active-label', filter)
+  }, [ready, districts, activeDistrictId])
 
   // объекты: кластеры + цветные маркеры категорий
   useEffect(() => {
