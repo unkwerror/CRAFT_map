@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { absoluteSiteUrl, serializeJsonLd } from './seo'
+import { absoluteSiteUrl, publicSiteOrigin, serializeJsonLd } from './seo'
 
 describe('absoluteSiteUrl', () => {
-  it('builds canonical URLs on the production domain', () => {
+  it('builds canonical URLs on the unicode production domain', () => {
     expect(absoluteSiteUrl('/object/123')).toBe(
-      'https://xn--80ayho4cq.site/object/123'
+      'https://память.site/object/123'
     )
   })
 
@@ -12,6 +12,14 @@ describe('absoluteSiteUrl', () => {
     expect(absoluteSiteUrl('https://cdn.example/photo.webp')).toBe(
       'https://cdn.example/photo.webp'
     )
+  })
+})
+
+describe('publicSiteOrigin', () => {
+  it('normalizes punycode and unicode hosts to the display domain', () => {
+    expect(publicSiteOrigin('https://xn--80ayho4cq.site')).toBe('https://память.site')
+    expect(publicSiteOrigin('https://память.site')).toBe('https://память.site')
+    expect(publicSiteOrigin('https://example.com')).toBe('https://example.com')
   })
 })
 

@@ -54,7 +54,7 @@ export function createEventCalendar(event: CalendarEvent, now = new Date()): str
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `UID:${event.id}@xn--80ayho4cq.site`,
+    `UID:${event.id}@память.site`,
     `DTSTAMP:${utcStamp(now)}`,
   ]
 

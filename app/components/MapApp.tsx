@@ -215,7 +215,7 @@ export default function MapApp({ categories }: Props) {
   }, [flushScheduledReplace, writeUrlState])
 
   const loadData = useCallback(async () => {
-    setDataReady(false)
+    // Не сбрасываем dataReady, если данные уже есть: иначе preloader/мигание на mobile.
     setDataLoading(true)
     const [objectResult, districtResult] = await Promise.allSettled([
       fetchGeoJson('/api/objects'),
@@ -238,16 +238,18 @@ export default function MapApp({ categories }: Props) {
   }, [loadData])
 
   useEffect(() => {
+    if (showPreloader === false) return
     if ((!mapReady && !mapIssue) || !dataReady) return
     const timer = window.setTimeout(() => setShowPreloader(false), 420)
     return () => window.clearTimeout(timer)
-  }, [mapReady, mapIssue, dataReady])
+  }, [mapReady, mapIssue, dataReady, showPreloader])
 
   useEffect(() => {
-    if (mapReady) return
-    const timer = window.setTimeout(() => setMapIssue(true), 8_000)
+    if (mapReady || mapIssue) return
+    // Mobile на медленной сети: не показываем «ошибку карты» слишком рано.
+    const timer = window.setTimeout(() => setMapIssue(true), 20_000)
     return () => window.clearTimeout(timer)
-  }, [mapReady])
+  }, [mapReady, mapIssue])
 
   // Канонизируем только принадлежащие карте параметры, не стирая UTM и feature flags.
   useEffect(() => {
@@ -400,7 +402,16 @@ export default function MapApp({ categories }: Props) {
   }, [scheduleUrlReplace])
 
   const handleCameraChange = useCallback((nextCamera: MapCameraState) => {
-    setCamera(nextCamera)
+    setCamera((current) => {
+      const sameCenter =
+        Math.abs((current.center?.lng ?? 0) - (nextCamera.center?.lng ?? 0)) < 0.00001 &&
+        Math.abs((current.center?.lat ?? 0) - (nextCamera.center?.lat ?? 0)) < 0.00001
+      const sameView =
+        Math.abs((current.zoom ?? 0) - (nextCamera.zoom ?? 0)) < 0.01 &&
+        Math.abs((current.bearing ?? 0) - (nextCamera.bearing ?? 0)) < 0.1 &&
+        Math.abs((current.pitch ?? 0) - (nextCamera.pitch ?? 0)) < 0.1
+      return sameCenter && sameView ? current : nextCamera
+    })
     urlStateRef.current = { ...urlStateRef.current, ...nextCamera }
     scheduleUrlReplace()
   }, [scheduleUrlReplace])

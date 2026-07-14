@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { EventDto, ObjectFull } from '@/lib/types'
+import { publicSiteOrigin } from '@/lib/seo'
 import AudioGuide from './AudioGuide'
 import ObjectMediaGallery from './ObjectMediaGallery'
 import ObjectSections from './ObjectSections'
@@ -171,7 +172,7 @@ export default function ObjectCard({ id, onClose }: Props) {
   }, [mobileModal])
 
   async function shareObject() {
-    const url = `${window.location.origin}/object/${id}`
+    const url = `${publicSiteOrigin(window.location.origin)}/object/${id}`
     if (navigator.share) {
       try {
         await navigator.share({ title: data?.title ?? 'Памятный объект Тюмени', url })

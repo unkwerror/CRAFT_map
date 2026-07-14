@@ -1,8 +1,36 @@
-export const SITE_URL = new URL('https://xn--80ayho4cq.site')
+/** Человекочитаемый канонический origin (IDN: память.site). */
+export const SITE_ORIGIN = 'https://память.site'
 
-/** Приводит внутренние пути и URL загруженных файлов к абсолютному каноническому URL. */
+/**
+ * metadataBase / технические URL. Браузеры и Next нормализуют IDN в punycode
+ * (xn--80ayho4cq.site) — это тот же домен, не «чужой» сайт.
+ */
+export const SITE_URL = new URL(SITE_ORIGIN)
+
+/** Приводит внутренние пути к абсолютному URL с кириллическим доменом. */
 export function absoluteSiteUrl(path: string): string {
-  return new URL(path, SITE_URL).toString()
+  if (/^https?:\/\//i.test(path)) return path
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  return `${SITE_ORIGIN}${normalized}`
+}
+
+/** Origin для share/clipboard: предпочитает текущий host, если это наш домен. */
+export function publicSiteOrigin(currentOrigin?: string): string {
+  if (!currentOrigin) return SITE_ORIGIN
+  try {
+    const host = new URL(currentOrigin).hostname
+    if (
+      host === 'память.site' ||
+      host === 'www.память.site' ||
+      host === 'xn--80ayho4cq.site' ||
+      host === 'www.xn--80ayho4cq.site'
+    ) {
+      return SITE_ORIGIN
+    }
+  } catch {
+    // ignore
+  }
+  return currentOrigin
 }
 
 /**

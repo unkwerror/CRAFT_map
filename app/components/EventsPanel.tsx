@@ -12,6 +12,7 @@ import {
 } from '@/lib/public-events-ui'
 import type { EventPeriod } from '@/lib/public-events-ui'
 import type { PublicEventDto } from '@/lib/types'
+import { publicSiteOrigin } from '@/lib/seo'
 
 interface Props {
   suspended: boolean
@@ -26,7 +27,7 @@ function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () =>
   const time = formatEventTime(event.startsAt, event.endsAt)
 
   async function shareEvent() {
-    const url = `${window.location.origin}/event/${event.id}`
+    const url = `${publicSiteOrigin(window.location.origin)}/event/${event.id}`
     if (navigator.share) {
       try {
         await navigator.share({ title: event.title, url })

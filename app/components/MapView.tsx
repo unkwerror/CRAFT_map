@@ -91,16 +91,20 @@ function readCamera(map: MLMap): MapCameraState {
   }
 }
 
-function cameraMatches(map: MLMap, camera: MapCameraState): boolean {
-  const current = readCamera(map)
-  const center = camera.center ?? { lng: TYUMEN_CENTER[0], lat: TYUMEN_CENTER[1] }
+function cameraValuesMatch(left: MapCameraState, right: MapCameraState): boolean {
+  const leftCenter = left.center ?? { lng: TYUMEN_CENTER[0], lat: TYUMEN_CENTER[1] }
+  const rightCenter = right.center ?? { lng: TYUMEN_CENTER[0], lat: TYUMEN_CENTER[1] }
   return (
-    Math.abs((current.center?.lng ?? 0) - center.lng) < 0.000001 &&
-    Math.abs((current.center?.lat ?? 0) - center.lat) < 0.000001 &&
-    Math.abs((current.zoom ?? 0) - (camera.zoom ?? TYUMEN_OVERVIEW_ZOOM)) < 0.001 &&
-    Math.abs((current.bearing ?? 0) - (camera.bearing ?? 0)) < 0.01 &&
-    Math.abs((current.pitch ?? 0) - (camera.pitch ?? 0)) < 0.01
+    Math.abs(leftCenter.lng - rightCenter.lng) < 0.00001 &&
+    Math.abs(leftCenter.lat - rightCenter.lat) < 0.00001 &&
+    Math.abs((left.zoom ?? TYUMEN_OVERVIEW_ZOOM) - (right.zoom ?? TYUMEN_OVERVIEW_ZOOM)) < 0.01 &&
+    Math.abs((left.bearing ?? 0) - (right.bearing ?? 0)) < 0.1 &&
+    Math.abs((left.pitch ?? 0) - (right.pitch ?? 0)) < 0.1
   )
+}
+
+function cameraMatches(map: MLMap, camera: MapCameraState): boolean {
+  return cameraValuesMatch(readCamera(map), camera)
 }
 
 function errorMessageFromMapEvent(event: { error?: Error | string; message?: string }): string {
@@ -110,13 +114,28 @@ function errorMessageFromMapEvent(event: { error?: Error | string; message?: str
   return ''
 }
 
+/** Обычные сетевые/тайловые сбои не должны сбрасывать карту на mobile. */
+function isIgnorableMapError(message: string): boolean {
+  const text = message.toLowerCase()
+  return (
+    text.includes('tile') ||
+    text.includes('ajax') ||
+    text.includes('404') ||
+    text.includes('failed to fetch') ||
+    text.includes('networkerror') ||
+    text.includes('load failed') ||
+    text.includes('aborted') ||
+    text.includes('cancel')
+  )
+}
+
 export default function MapView({
   categories,
   objects,
   districts,
   selected,
   highlightedId,
-  activeDistrictId,
+  activeDistrictId: _activeDistrictId,
   fitDistrict,
   camera,
   onSelect,
@@ -133,6 +152,8 @@ export default function MapView({
   const cameraBeforePerspectiveRef = useRef<SavedCamera | null>(null)
   const labelFontRef = useRef<string[]>(['Noto Sans Bold'])
   const initialCameraRef = useRef(camera)
+  const lastEmittedCameraRef = useRef<MapCameraState | null>(null)
+  const lastFlownObjectIdRef = useRef<string | null>(null)
   const onSelectRef = useRef(onSelect)
   const onCameraChangeRef = useRef(onCameraChange)
   const onReadyRef = useRef(onReady)
@@ -148,6 +169,8 @@ export default function MapView({
     let cancelled = false
     let hoverFrame: number | null = null
     let latestHoverPoint: [number, number] | null = null
+    let resizeObserver: ResizeObserver | null = null
+    let resizeMap: (() => void) | null = null
     ensurePmtilesProtocol()
 
     resolveMapStyle().then(({ style, labelFont }) => {
@@ -167,8 +190,13 @@ export default function MapView({
         maxZoom: 19,
         attributionControl: { compact: true },
         locale: MAP_LOCALE,
+        // Компас (стрелка «на север») отключён: для городской карты он путает,
+        // а 2D/3D и «Город» закрывают ориентацию явно.
+        // dragRotate остаётся жестом двумя пальцами / правой кнопкой.
+        dragRotate: true,
+        pitchWithRotate: true,
       })
-      map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'bottom-right')
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
       // «Моё местоположение»: кнопка + пульсирующая точка юзера и круг точности.
       // Требует HTTPS (на проде есть). Трекинг слетает в «пассивный» режим при ручном
       // перемещении карты — повторный клик снова центрирует.
@@ -181,23 +209,20 @@ export default function MapView({
         }),
         'bottom-right'
       )
-      let styleLoadFailed = false
-      let criticalErrors = 0
       map.on('error', (event) => {
-        // Отдельные 404 тайлов не должны ронять карту; серия критических ошибок — да.
-        const message = String(errorMessageFromMapEvent(event)).toLowerCase()
-        const isTileNoise =
-          message.includes('tile') ||
-          message.includes('404') ||
-          message.includes('failed to fetch') ||
-          message.includes('networkerror')
-        if (isTileNoise && !styleLoadFailed) {
-          criticalErrors += 1
-          if (criticalErrors < 8) return
-        }
-        styleLoadFailed = true
+        const message = errorMessageFromMapEvent(event)
+        if (isIgnorableMapError(message)) return
         onErrorRef.current?.()
       })
+
+      resizeMap = () => {
+        if (cancelled || !mapRef.current) return
+        map.resize()
+      }
+      window.addEventListener('orientationchange', resizeMap)
+      window.visualViewport?.addEventListener('resize', resizeMap)
+      resizeObserver = new ResizeObserver(resizeMap)
+      resizeObserver.observe(containerRef.current)
 
       map.on('load', () => {
         // В перспективном режиме локальная векторная подложка получает объёмные здания.
@@ -236,13 +261,19 @@ export default function MapView({
             firstLabel
           )
         }
+        // iOS/Chrome mobile: после появления UI-chrome контейнер может сменить высоту.
+        map.resize()
+        const cameraState = readCamera(map)
+        lastEmittedCameraRef.current = cameraState
         setReady(true)
-        onCameraChangeRef.current?.(readCamera(map))
+        onCameraChangeRef.current?.(cameraState)
         onReadyRef.current?.()
       })
 
       map.on('moveend', () => {
-        onCameraChangeRef.current?.(readCamera(map))
+        const cameraState = readCamera(map)
+        lastEmittedCameraRef.current = cameraState
+        onCameraChangeRef.current?.(cameraState)
       })
 
       // клик с расширенной зоной тапа (±14px ≈ 40px hit area)
@@ -310,84 +341,15 @@ export default function MapView({
     return () => {
       cancelled = true
       if (hoverFrame !== null) window.cancelAnimationFrame(hoverFrame)
+      resizeObserver?.disconnect()
+      if (resizeMap) {
+        window.removeEventListener('orientationchange', resizeMap)
+        window.visualViewport?.removeEventListener('resize', resizeMap)
+      }
       mapRef.current?.remove()
       mapRef.current = null
     }
   }, [])
-
-  // Округа: спокойная служебная граница, не конкурирующая с дорогами и маркерами.
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready || !districts) return
-    const src = map.getSource('districts') as maplibregl.GeoJSONSource | undefined
-    if (src) {
-      src.setData(districts)
-      return
-    }
-    map.addSource('districts', { type: 'geojson', data: districts })
-    map.addLayer({
-      id: 'districts-fill',
-      type: 'fill',
-      source: 'districts',
-      paint: { 'fill-color': '#7ea5bd', 'fill-opacity': 0.025 },
-    })
-    map.addLayer({
-      id: 'districts-active',
-      type: 'fill',
-      source: 'districts',
-      filter: ['==', ['get', 'id'], -1],
-      paint: { 'fill-color': '#efad45', 'fill-opacity': 0.11 },
-    })
-    map.addLayer({
-      id: 'districts-line',
-      type: 'line',
-      source: 'districts',
-      paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 },
-    })
-    map.addLayer({
-      id: 'districts-active-line',
-      type: 'line',
-      source: 'districts',
-      filter: ['==', ['get', 'id'], -1],
-      paint: {
-        'line-color': '#f4bb62',
-        'line-width': 2.6,
-        'line-opacity': 0.95,
-      },
-    })
-    map.addLayer({
-      id: 'districts-label',
-      type: 'symbol',
-      source: 'districts',
-      minzoom: 9,
-      maxzoom: 14.5,
-      layout: {
-        'text-field': ['get', 'name'],
-        'text-font': labelFontRef.current,
-        'text-size': 13,
-        'text-transform': 'uppercase',
-        'text-letter-spacing': 0.12,
-      },
-      paint: {
-        'text-color': '#e8f0f6',
-        'text-halo-color': '#142b3e',
-        'text-halo-width': 1.5,
-        'text-opacity': 0.58,
-      },
-    })
-  }, [ready, districts])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    const filter: maplibregl.FilterSpecification = [
-      '==',
-      ['get', 'id'],
-      activeDistrictId ?? -1,
-    ]
-    if (map.getLayer('districts-active')) map.setFilter('districts-active', filter)
-    if (map.getLayer('districts-active-line')) map.setFilter('districts-active-line', filter)
-  }, [ready, districts, activeDistrictId])
 
   // объекты: кластеры + цветные маркеры категорий
   useEffect(() => {
@@ -603,24 +565,28 @@ export default function MapView({
     return () => cancelAnimationFrame(raf)
   }, [ready, objects])
 
-  // подсветка выбранного + плавное центрирование с offset под панель
+  // подсветка выбранного + flyTo только при смене объекта (не при каждом re-render)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !map.getLayer('objects-selected')) return
     map.setFilter('objects-selected', ['==', ['get', 'id'], selected?.id ?? ''])
-    if (selected) {
-      const desktop = window.innerWidth >= 768
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      map.flyTo({
-        center: [selected.lng, selected.lat],
-        zoom: Math.max(map.getZoom(), 15.1),
-        offset: desktop ? [-230, 0] : [0, -140],
-        duration: reducedMotion ? 0 : 700,
-      })
+    if (!selected) {
+      lastFlownObjectIdRef.current = null
+      return
     }
+    if (lastFlownObjectIdRef.current === selected.id) return
+    lastFlownObjectIdRef.current = selected.id
+    const desktop = window.innerWidth >= 768
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    map.flyTo({
+      center: [selected.lng, selected.lat],
+      zoom: Math.max(map.getZoom(), 15.1),
+      offset: desktop ? [-230, 0] : [0, -140],
+      duration: reducedMotion ? 0 : 700,
+    })
   }, [ready, selected])
 
-  // fitBounds на выбранный округ
+  // fitBounds на выбранный округ (контуры на карте не рисуем — только навигация)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !fitDistrict || !districts) return
@@ -633,11 +599,18 @@ export default function MapView({
     }
   }, [ready, fitDistrict, districts])
 
-  // Back/Forward и открытие shareable URL полностью восстанавливают камеру.
-  // Проверка допуска не даёт управляемому prop зациклить собственный moveend.
+  // Back/Forward и shareable URL: применяем камеру только если она пришла снаружи,
+  // а не как эхо собственного moveend (иначе mobile «дёргает» и перезагружает вид).
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || cameraMatches(map, camera)) return
+    if (!map || !ready) return
+    if (lastEmittedCameraRef.current && cameraValuesMatch(lastEmittedCameraRef.current, camera)) {
+      return
+    }
+    if (cameraMatches(map, camera)) {
+      lastEmittedCameraRef.current = camera
+      return
+    }
     const center = camera.center ?? { lng: TYUMEN_CENTER[0], lat: TYUMEN_CENTER[1] }
     const pitch = camera.pitch ?? 0
     cameraBeforePerspectiveRef.current = null
@@ -645,10 +618,17 @@ export default function MapView({
     if (map.getLayer('buildings-3d')) {
       map.setLayoutProperty('buildings-3d', 'visibility', pitch > 0.5 ? 'visible' : 'none')
     }
-    map.jumpTo({
-      center: [center.lng, center.lat],
+    const nextCamera: MapCameraState = {
+      center: { lng: center.lng, lat: center.lat },
       zoom: camera.zoom ?? TYUMEN_OVERVIEW_ZOOM,
       bearing: camera.bearing ?? 0,
+      pitch,
+    }
+    lastEmittedCameraRef.current = nextCamera
+    map.jumpTo({
+      center: [center.lng, center.lat],
+      zoom: nextCamera.zoom ?? TYUMEN_OVERVIEW_ZOOM,
+      bearing: nextCamera.bearing ?? 0,
       pitch,
     })
   }, [ready, camera])

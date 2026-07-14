@@ -1,5 +1,5 @@
 /* Частичный offline-режим: shell, публичные данные и уже открытые медиа. */
-const VERSION = 'craft-map-v2'
+const VERSION = 'craft-map-v3'
 const STATIC_CACHE = `${VERSION}-static`
 const DATA_CACHE = `${VERSION}-data`
 const MEDIA_CACHE = `${VERSION}-media`

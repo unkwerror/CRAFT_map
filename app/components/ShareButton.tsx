@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { publicSiteOrigin } from '@/lib/seo'
 
 export default function ShareButton({ title, label = 'Поделиться' }: { title: string; label?: string }) {
   const [copied, setCopied] = useState(false)
 
   async function share() {
-    const url = window.location.href
+    const current = new URL(window.location.href)
+    const url = `${publicSiteOrigin(current.origin)}${current.pathname}${current.search}`
     if (navigator.share) {
       try {
         await navigator.share({ title, url })
