@@ -83,6 +83,11 @@ export interface ObjectFeatureProps {
   thumb: string
   /** у объекта есть мероприятие на сегодняшнюю дату — маркер пульсирует */
   hasEvent: boolean
+  hasAudio: boolean
+  hasVideo: boolean
+  has3d: boolean
+  objectType: string | null
+  creationPeriod: string | null
 }
 
 export interface ObjectFull {
@@ -110,6 +115,14 @@ export interface ObjectFull {
   sortWeight: number
   /** текущие и ближайшие мероприятия у объекта */
   events: EventDto[]
+  alternativeNames?: string[]
+  objectType?: string | null
+  creationPeriod?: string | null
+  protectionStatus?: string | null
+  materials?: string[]
+  accessInfo?: string | null
+  mediaRightsStatus?: string | null
+  verificationStatus?: 'unverified' | 'needs_review' | 'verified'
 }
 
 export interface AdminEventRow {
@@ -144,6 +157,8 @@ export interface AdminObjectRow {
   sortWeight: number
   photoCount: number
   updatedAt: string
+  readinessScore?: number
+  readinessMissing?: string[]
 }
 
 export type GeocodeStatus = 'pending' | 'high' | 'medium' | 'failed' | 'verified'

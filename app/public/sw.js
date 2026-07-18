@@ -1,5 +1,5 @@
-/* Частичный offline-режим: shell, публичные данные и уже открытые медиа. */
-const VERSION = 'craft-map-v3'
+/* Частичный offline-режим: shell, публичные данные, уже открытые медиа и офлайн-пакеты маршрутов (кэши pamyat-route-*). */
+const VERSION = 'craft-map-v4'
 const STATIC_CACHE = `${VERSION}-static`
 const DATA_CACHE = `${VERSION}-data`
 const MEDIA_CACHE = `${VERSION}-media`
@@ -40,7 +40,8 @@ async function networkFirst(request, cacheName, fallback) {
     else if (response.status === 404 || response.status === 410) await cache.delete(request)
     return response
   } catch {
-    return (await cache.match(request)) || (fallback ? await caches.match(fallback) : Response.error())
+    // caches.match ищет по всем кэшам, включая офлайн-пакеты маршрутов pamyat-route-*.
+    return (await cache.match(request)) || (await caches.match(request)) || (fallback ? await caches.match(fallback) : Response.error())
   }
 }
 
@@ -52,12 +53,12 @@ async function staleWhileRevalidate(request, cacheName) {
     else if (response.status === 404 || response.status === 410) await cache.delete(request)
     return response
   }).catch(() => null)
-  return cached || (await network) || Response.error()
+  return cached || (await network) || (await caches.match(request)) || Response.error()
 }
 
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName)
-  const cached = await cache.match(request)
+  const cached = (await cache.match(request)) || (await caches.match(request))
   if (cached) return cached
   const response = await fetch(request)
   if (mayStore(response)) await cache.put(request, response.clone())
@@ -86,6 +87,11 @@ self.addEventListener('fetch', (event) => {
   }
   if (/^\/api\/(objects(?:\/[^/]+)?|districts|events)$/.test(url.pathname)) {
     event.respondWith(staleWhileRevalidate(request, DATA_CACHE))
+    return
+  }
+  // Публичные v1-чтения (маршруты, люди, хронология): сеть, офлайн — из пакета маршрута.
+  if (url.pathname.startsWith('/api/v1/')) {
+    event.respondWith(networkFirst(request, DATA_CACHE))
     return
   }
   if (url.pathname.startsWith('/uploads/')) {

@@ -14,6 +14,11 @@ interface Row {
   lng: number
   lat: number
   has_event: boolean
+  has_audio: boolean
+  has_video: boolean
+  has_3d: boolean
+  object_type: string | null
+  creation_period: string | null
 }
 
 /** GeoJSON FeatureCollection опубликованных объектов (лёгкие поля для карты) */
@@ -24,6 +29,10 @@ export async function GET(req: NextRequest) {
            o.address,
            coalesce(o.photos -> 0 ->> 'thumb', '') as thumb,
            st_x(o.geom) as lng, st_y(o.geom) as lat,
+           (o.audio_url is not null or o.audio_text is not null) as has_audio,
+           jsonb_array_length(o.videos) > 0 as has_video,
+           o.model_url is not null as has_3d,
+           o.object_type, o.creation_period,
            exists (
              select 1 from events e
              where e.object_id = o.id
@@ -50,6 +59,11 @@ export async function GET(req: NextRequest) {
           address: r.address,
           thumb: r.thumb,
           hasEvent: r.has_event,
+          hasAudio: r.has_audio,
+          hasVideo: r.has_video,
+          has3d: r.has_3d,
+          objectType: r.object_type,
+          creationPeriod: r.creation_period,
         },
       })),
     },

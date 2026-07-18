@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import SearchBar from './SearchBar'
 import CategoryChips from './CategoryChips'
@@ -10,6 +11,7 @@ import MapModeNav from './MapModeNav'
 import ObjectCard from './ObjectCard'
 import MapPreloader from './MapPreloader'
 import PlacesListPanel from './PlacesListPanel'
+import MediaFilters, { type MediaFilter } from './MediaFilters'
 import type { MapNavigationMode, MapViewMode } from './MapModeNav'
 import { rankSearchMatch } from '@/lib/map-search'
 import {
@@ -20,6 +22,7 @@ import {
   type PublicMapView,
 } from '@/lib/public-map-url'
 import type { CategoryDto, ObjectFeatureProps } from '@/lib/types'
+import { trackPublicEvent } from '@/lib/analytics-client'
 
 const MapView = dynamic(() => import('./MapView'), {
   ssr: false,
@@ -32,6 +35,8 @@ const MapView = dynamic(() => import('./MapView'), {
 
 interface Props {
   categories: CategoryDto[]
+  routesEnabled?: boolean
+  peopleEnabled?: boolean
 }
 
 type FC = GeoJSON.FeatureCollection
@@ -126,7 +131,7 @@ function publicView(activeView: MapViewMode, placesView: PlacesView): PublicMapV
   return placesView === 'list' ? 'list' : 'map'
 }
 
-export default function MapApp({ categories }: Props) {
+export default function MapApp({ categories, routesEnabled = false, peopleEnabled = false }: Props) {
   const searchParams = useSearchParams()
   const [initialUrlState] = useState(() =>
     decodeMapUrl(new URLSearchParams(searchParams.toString()))
@@ -142,6 +147,9 @@ export default function MapApp({ categories }: Props) {
     () => initialActiveCats
   )
   const [activeDistrict, setActiveDistrict] = useState<number | null>(initialUrlState.districtId)
+  const [mediaFilters, setMediaFilters] = useState<ReadonlySet<MediaFilter>>(
+    () => new Set(initialUrlState.mediaTypes)
+  )
   const [selectedId, setSelectedId] = useState<string | null>(initialUrlState.objectId)
   const [activeView, setActiveView] = useState<MapViewMode>(
     initialView === 'events' ? 'events' : 'map'
@@ -235,7 +243,12 @@ export default function MapApp({ categories }: Props) {
 
   useEffect(() => {
     void loadData()
+    trackPublicEvent('map_open')
   }, [loadData])
+
+  useEffect(() => {
+    if (selectedId) trackPublicEvent('place_open', selectedId)
+  }, [selectedId])
 
   useEffect(() => {
     if (showPreloader === false) return
@@ -276,6 +289,7 @@ export default function MapApp({ categories }: Props) {
       setPlacesView(nextView === 'list' ? 'list' : 'map')
       setActiveCats(nextCategories)
       setActiveDistrict(decoded.districtId)
+      setMediaFilters(new Set(decoded.mediaTypes))
       setSearchQuery(decoded.searchQuery ?? '')
       setCamera({
         center: decoded.center,
@@ -314,10 +328,13 @@ export default function MapApp({ categories }: Props) {
         const p = f.properties as unknown as ObjectFeatureProps
         if (!activeCats.has(p.category)) return false
         if (activeDistrict !== null && p.district !== activeDistrict) return false
+        if (mediaFilters.has('audio') && !p.hasAudio) return false
+        if (mediaFilters.has('video') && !p.hasVideo) return false
+        if (mediaFilters.has('3d') && !p.has3d) return false
         return true
       }),
     }
-  }, [objectsFC, activeCats, activeDistrict])
+  }, [objectsFC, activeCats, activeDistrict, mediaFilters])
 
   const categoryById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
@@ -500,12 +517,27 @@ export default function MapApp({ categories }: Props) {
     setSelectedId(nextSelectedId)
     setActiveCats(nextCategories)
     setActiveDistrict(null)
+    setMediaFilters(new Set())
     pushUrlState({
       objectId: nextSelectedId,
       categoryIds: null,
       districtId: null,
+      mediaTypes: [],
     })
   }, [categories, pushUrlState, selectedAfterFilters])
+
+  const toggleMediaFilter = useCallback((filter: MediaFilter) => {
+    const next = new Set(mediaFilters)
+    if (next.has(filter)) next.delete(filter)
+    else next.add(filter)
+    setMediaFilters(next)
+    pushUrlState({ mediaTypes: [...next] })
+  }, [mediaFilters, pushUrlState])
+
+  const resetMediaFilters = useCallback(() => {
+    setMediaFilters(new Set())
+    pushUrlState({ mediaTypes: [] })
+  }, [pushUrlState])
 
   const toggleCategory = useCallback((id: string) => {
     const nextCategories = activeCats.size === categories.length
@@ -528,6 +560,9 @@ export default function MapApp({ categories }: Props) {
   const allCategoriesActive = activeCats.size === categories.length
   const hasCategoryFilter = !allCategoriesActive
   const hasDistrictFilter = activeDistrict !== null
+  const hasMediaFilter = mediaFilters.size > 0
+  const activeFilterKinds =
+    [hasCategoryFilter, hasDistrictFilter, hasMediaFilter].filter(Boolean).length
   const dataFailureMessage = describeDataFailures(dataFailures)
   const listLoadError = dataFailures.objects === 'timeout'
     ? 'Памятные места загружаются слишком долго. Проверьте соединение и попробуйте ещё раз.'
@@ -545,7 +580,7 @@ export default function MapApp({ categories }: Props) {
     !dataFailures.objects &&
     hasLoadedObjects &&
     filteredFC?.features.length === 0 &&
-    (hasCategoryFilter || hasDistrictFilter)
+    (hasCategoryFilter || hasDistrictFilter || hasMediaFilter)
   )
   const catalogIsEmpty = Boolean(
     dataReady &&
@@ -553,20 +588,22 @@ export default function MapApp({ categories }: Props) {
     objectsFC &&
     objectsFC.features.length === 0 &&
     !hasCategoryFilter &&
-    !hasDistrictFilter
+    !hasDistrictFilter && !hasMediaFilter
   )
   const selectedCategoryName = activeCats.size === 1
     ? categories.find((category) => activeCats.has(category.id))?.title
     : null
   const noResultsDescription = activeCats.size === 0
     ? 'Вы скрыли все категории. Верните категории или сбросьте все фильтры.'
-    : hasDistrictFilter && hasCategoryFilter
-      ? `В округе «${activeDistrictName ?? 'выбранном'}» по ${selectedCategoryName ? `категории «${selectedCategoryName}»` : 'выбранным категориям'} объектов пока нет.`
-      : hasDistrictFilter
-        ? `В округе «${activeDistrictName ?? 'выбранном'}» объектов пока нет.`
-        : selectedCategoryName
-          ? `В категории «${selectedCategoryName}» объектов пока нет.`
-          : 'По выбранным категориям объектов пока нет.'
+    : hasMediaFilter && !hasCategoryFilter && !hasDistrictFilter
+      ? 'Под выбранные форматы (аудио/видео/3D) объектов не нашлось.'
+      : hasDistrictFilter && hasCategoryFilter
+        ? `В округе «${activeDistrictName ?? 'выбранном'}» по ${selectedCategoryName ? `категории «${selectedCategoryName}»` : 'выбранным категориям'} объектов пока нет.`
+        : hasDistrictFilter
+          ? `В округе «${activeDistrictName ?? 'выбранном'}» объектов пока нет.`
+          : selectedCategoryName
+            ? `В категории «${selectedCategoryName}» объектов пока нет.`
+            : 'По выбранным категориям объектов пока нет.'
 
   const closeObject = useCallback(() => {
     if (!selectedId) return
@@ -702,20 +739,27 @@ export default function MapApp({ categories }: Props) {
                 />
               </div>
               <div className="hidden shrink-0 xl:block">
-                <MapModeNav active={publicView(activeView, placesView)} onChange={changeView} />
+                <div className="flex items-center gap-2">
+                  <MapModeNav active={publicView(activeView, placesView)} onChange={changeView} />
+                  {routesEnabled && <Link href="/routes" className="panel grid min-h-11 place-items-center rounded-xl px-3 text-sm font-semibold">Маршруты</Link>}
+                  {peopleEnabled && <Link href="/people" className="panel grid min-h-11 place-items-center rounded-xl px-3 text-sm font-semibold">Люди</Link>}
+                </div>
               </div>
             </div>
             {activeView === 'map' && (
-              <CategoryChips
-                categories={categories}
-                activeCats={activeCats}
-                activeDistrictName={activeDistrictName}
-                counts={categoryCounts}
-                visibleCount={filteredFC?.features.length ?? 0}
-                onShowAll={showAllCategories}
-                onToggleCat={toggleCategory}
-                onClearDistrict={() => selectDistrict(null)}
-              />
+              <>
+                <CategoryChips
+                  categories={categories}
+                  activeCats={activeCats}
+                  activeDistrictName={activeDistrictName}
+                  counts={categoryCounts}
+                  visibleCount={filteredFC?.features.length ?? 0}
+                  onShowAll={showAllCategories}
+                  onToggleCat={toggleCategory}
+                  onClearDistrict={() => selectDistrict(null)}
+                />
+                <MediaFilters active={mediaFilters} onToggle={toggleMediaFilter} />
+              </>
             )}
           </div>
         </div>
@@ -755,7 +799,7 @@ export default function MapApp({ categories }: Props) {
             {noResultsDescription}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {hasCategoryFilter && hasDistrictFilter && (
+            {activeFilterKinds >= 2 && (
               <button type="button" onClick={resetFilters} className="btn-accent min-h-11 rounded-xl px-4 text-sm">
                 Сбросить всё
               </button>
@@ -768,6 +812,11 @@ export default function MapApp({ categories }: Props) {
             {hasDistrictFilter && (
               <button type="button" onClick={() => selectDistrict(null)} className="btn-ghost min-h-11 rounded-xl px-4 text-sm">
                 Сбросить округ
+              </button>
+            )}
+            {hasMediaFilter && (
+              <button type="button" onClick={resetMediaFilters} className="btn-ghost min-h-11 rounded-xl px-4 text-sm">
+                Сбросить форматы
               </button>
             )}
           </div>
@@ -798,9 +847,12 @@ export default function MapApp({ categories }: Props) {
           loading={dataLoading}
           searchQuery={searchQuery.trim().length >= 2 ? searchQuery.trim() : null}
           loadError={listLoadError}
+          routesEnabled={routesEnabled}
+          peopleEnabled={peopleEnabled}
           onRetry={() => void loadData()}
           onClose={closePlacesList}
           onSelectObject={pickObject}
+          onClearSearch={() => changeSearchQuery('')}
         />
       )}
 

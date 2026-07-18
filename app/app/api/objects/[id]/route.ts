@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { pg } from '@/lib/db'
+import { publicJsonResponse } from '@/lib/http-cache'
 import { normalizePhotos, normalizeSections, normalizeVideos } from '@/lib/object-content'
 import { uuidSchema } from '@/lib/validation'
 import type { EventDto, ObjectFull } from '@/lib/types'
@@ -26,6 +27,13 @@ interface Row {
   model_url: string | null
   published: boolean
   sort_weight: number
+  alternative_names: string[]
+  object_type: string | null
+  creation_period: string | null
+  protection_status: string | null
+  materials: string[]
+  access_info: string | null
+  verification_status: 'unverified' | 'needs_review' | 'verified'
 }
 
 interface EventRow {
@@ -47,7 +55,7 @@ interface EventRow {
 }
 
 /** Полная карточка опубликованного объекта */
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!uuidSchema.safeParse(id).success) {
     return NextResponse.json({ error: 'Объект не найден' }, { status: 404 })
@@ -62,7 +70,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
            coalesce(o.videos, '[]'::jsonb) as videos,
            o.audio_url, o.audio_text, o.rating,
            coalesce(o.sections, '[]'::jsonb) as sections,
-           o.model_url, o.published, o.sort_weight
+           o.model_url, o.published, o.sort_weight, o.alternative_names,
+           o.object_type, o.creation_period, o.protection_status, o.materials,
+           o.access_info, o.verification_status
     from objects o
     join categories c on c.id = o.category_id
     left join districts d on d.id = o.district_id
@@ -131,6 +141,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     published: r.published,
     sortWeight: r.sort_weight,
     events,
+    alternativeNames: r.alternative_names,
+    objectType: r.object_type,
+    creationPeriod: r.creation_period,
+    protectionStatus: r.protection_status,
+    materials: r.materials,
+    accessInfo: r.access_info,
+    verificationStatus: r.verification_status,
   }
-  return NextResponse.json(dto)
+  return publicJsonResponse(req, dto, { maxAge: 30, staleWhileRevalidate: 300 })
 }

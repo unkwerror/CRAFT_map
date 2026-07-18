@@ -155,6 +155,7 @@ export default function ObjectsTable({ role }: Props) {
               <th className="px-3 py-2.5">Категория</th>
               <th className="px-3 py-2.5">Округ</th>
               <th className="px-3 py-2.5">Фото</th>
+              <th className="px-3 py-2.5">Готовность</th>
               <th className="px-3 py-2.5">
                 <button type="button" onClick={() => clickSort('updated_at')} className="hover:text-slate-900">
                   Обновлён {sort === 'updated_at' ? (dir === 'asc' ? '↑' : '↓') : ''}
@@ -167,14 +168,14 @@ export default function ObjectsTable({ role }: Props) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={8} className="px-3 py-6 text-center text-slate-400">
                   Загрузка…
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={8} className="px-3 py-6 text-center text-slate-400">
                   Ничего не найдено
                 </td>
               </tr>
@@ -201,6 +202,15 @@ export default function ObjectsTable({ role }: Props) {
                     </td>
                     <td className="px-3 py-2.5 text-slate-500">{row.districtName ?? '—'}</td>
                     <td className="px-3 py-2.5 text-slate-500">{row.photoCount || '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className="font-semibold text-slate-700"
+                        title={row.readinessMissing?.join(' · ') || 'Карточка готова'}
+                        aria-label={`Готовность ${row.readinessScore ?? 0} процентов${row.readinessMissing?.length ? `. ${row.readinessMissing.join('. ')}` : ''}`}
+                      >
+                        {row.readinessScore ?? 0}%
+                      </span>
+                    </td>
                     <td className="px-3 py-2.5 text-slate-500">
                       {new Date(row.updatedAt).toLocaleDateString('ru-RU')}
                     </td>

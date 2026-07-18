@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { formatDistance, haversineDistanceMeters } from '@/lib/geo'
 import type { Coordinates } from '@/lib/geo'
 import type { CategoryDto, ObjectFeatureProps } from '@/lib/types'
@@ -27,9 +28,12 @@ interface Props {
   loading: boolean
   searchQuery: string | null
   loadError: string | null
+  routesEnabled?: boolean
+  peopleEnabled?: boolean
   onRetry: () => void
   onClose: () => void
   onSelectObject: (id: string) => void
+  onClearSearch: () => void
 }
 
 function locationErrorMessage(error: GeolocationPositionError): string {
@@ -51,9 +55,12 @@ export default function PlacesListPanel({
   loading,
   searchQuery,
   loadError,
+  routesEnabled = false,
+  peopleEnabled = false,
   onRetry,
   onClose,
   onSelectObject,
+  onClearSearch,
 }: Props) {
   const panelRef = useRef<HTMLElement>(null)
   const locationRequestRef = useRef(0)
@@ -220,9 +227,7 @@ export default function PlacesListPanel({
               Список мест
             </h1>
             <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-muted)]">
-              {searchQuery
-                ? `Все места по запросу «${searchQuery}».`
-                : 'Учитывает выбранные категории и округ.'}
+              Учитывает выбранные категории и округ.
             </p>
           </div>
           <button
@@ -236,6 +241,22 @@ export default function PlacesListPanel({
             </svg>
           </button>
         </div>
+
+        {searchQuery && (
+          <div className="mt-3 flex min-w-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-300/[0.07] py-1 pl-3.5 pr-1">
+            <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[var(--accent)]">
+              По запросу «{searchQuery}»
+            </p>
+            <button
+              type="button"
+              onClick={onClearSearch}
+              className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-[12px] font-semibold text-[var(--ink-muted)] hover:bg-white/[0.07] hover:text-[var(--ink)]"
+            >
+              <span aria-hidden>✕</span>
+              Сбросить запрос
+            </button>
+          </div>
+        )}
 
         <div className="places-list-filters mt-4" role="group" aria-label="Фильтр сохранённых мест">
           {filterOptions.map((option) => (
@@ -301,6 +322,29 @@ export default function PlacesListPanel({
           )}
         </div>
 
+        {(routesEnabled || peopleEnabled) && (
+          <nav className="mt-3 flex flex-wrap gap-2" aria-label="Разделы проекта">
+            {routesEnabled && (
+              <Link
+                href="/routes"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-3.5 text-[13px] font-semibold text-[var(--ink-muted)] hover:border-[var(--hairline-strong)] hover:text-[var(--ink)]"
+              >
+                Маршруты
+                <span aria-hidden>→</span>
+              </Link>
+            )}
+            {peopleEnabled && (
+              <Link
+                href="/people"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-3.5 text-[13px] font-semibold text-[var(--ink-muted)] hover:border-[var(--hairline-strong)] hover:text-[var(--ink)]"
+              >
+                Люди
+                <span aria-hidden>→</span>
+              </Link>
+            )}
+          </nav>
+        )}
+
         <p className="mt-3 text-xs text-[var(--ink-subtle)]" aria-live="polite">
           Показано: {visibleItems.length}
         </p>
@@ -334,12 +378,19 @@ export default function PlacesListPanel({
             </h2>
             <p>
               {savedFilter === 'all'
-                ? 'Вернитесь к карте и измените категории или округ.'
+                ? searchQuery
+                  ? `Ничего не нашлось по запросу «${searchQuery}». Сбросьте запрос или измените фильтры.`
+                  : 'Вернитесь к карте и измените категории или округ.'
                 : 'Отмечайте места в списке или карточке памятника.'}
             </p>
             {savedFilter !== 'all' && (
               <button type="button" onClick={() => setSavedFilter('all')} className="btn-accent mt-4 min-h-11 px-4 text-sm">
                 Показать все
+              </button>
+            )}
+            {savedFilter === 'all' && searchQuery && (
+              <button type="button" onClick={onClearSearch} className="btn-accent mt-4 min-h-11 px-4 text-sm">
+                Сбросить запрос
               </button>
             )}
           </div>

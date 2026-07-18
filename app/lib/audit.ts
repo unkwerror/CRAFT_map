@@ -11,7 +11,16 @@ export type AuditAction =
   | 'reject'
   | 'reopen'
 
-export type AuditEntity = 'object' | 'event' | 'user' | 'report'
+export type AuditEntity =
+  | 'object'
+  | 'event'
+  | 'user'
+  | 'report'
+  | 'person'
+  | 'historical_event'
+  | 'timeline_entry'
+  | 'archive_media'
+  | 'route'
 
 type AuditScalar = string | number | boolean | null
 type AuditMetadata = Record<string, AuditScalar>

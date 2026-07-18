@@ -39,8 +39,17 @@ export default function ObjectForm({ categories, initial }: Props) {
   const [modelUrl, setModelUrl] = useState<string | null>(initial?.modelUrl ?? null)
   const [published, setPublished] = useState(initial?.published ?? true)
   const [sortWeight, setSortWeight] = useState(initial?.sortWeight ?? 0)
+  const [alternativeNames, setAlternativeNames] = useState(initial?.alternativeNames?.join(', ') ?? '')
+  const [objectType, setObjectType] = useState(initial?.objectType ?? '')
+  const [creationPeriod, setCreationPeriod] = useState(initial?.creationPeriod ?? '')
+  const [protectionStatus, setProtectionStatus] = useState(initial?.protectionStatus ?? '')
+  const [materials, setMaterials] = useState(initial?.materials?.join(', ') ?? '')
+  const [accessInfo, setAccessInfo] = useState(initial?.accessInfo ?? '')
+  const [mediaRightsStatus, setMediaRightsStatus] = useState(initial?.mediaRightsStatus ?? '')
+  const [verificationStatus, setVerificationStatus] = useState(initial?.verificationStatus ?? 'unverified')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [dirty, setDirty] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [videoUploading, setVideoUploading] = useState(false)
   const [audioUploading, setAudioUploading] = useState(false)
@@ -87,6 +96,16 @@ export default function ObjectForm({ categories, initial }: Props) {
     }
   }, [lng, lat])
 
+  useEffect(() => {
+    if (!dirty || busy) return
+    const warnUnsaved = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnUnsaved)
+    return () => window.removeEventListener('beforeunload', warnUnsaved)
+  }, [dirty, busy])
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (mediaUploading) return
@@ -118,30 +137,44 @@ export default function ObjectForm({ categories, initial }: Props) {
       modelUrl,
       published,
       sortWeight,
+      alternativeNames: alternativeNames.split(',').map((v) => v.trim()).filter(Boolean),
+      objectType: objectType || null,
+      creationPeriod: creationPeriod || null,
+      protectionStatus: protectionStatus || null,
+      materials: materials.split(',').map((v) => v.trim()).filter(Boolean),
+      accessInfo: accessInfo || null,
+      mediaRightsStatus: mediaRightsStatus || null,
+      verificationStatus,
     }
-    const res = await fetch(
-      initial ? `/api/admin/objects/${initial.id}` : '/api/admin/objects',
-      {
-        method: initial ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+    try {
+      const res = await fetch(
+        initial ? `/api/admin/objects/${initial.id}` : '/api/admin/objects',
+        {
+          method: initial ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      )
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        setError(body?.error ?? 'Не удалось сохранить')
+        return
       }
-    )
-    setBusy(false)
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { error?: string } | null
-      setError(body?.error ?? 'Не удалось сохранить')
-      return
+      setDirty(false)
+      router.push('/admin')
+      router.refresh()
+    } catch {
+      setError('Нет соединения с сервером — проверьте сеть и попробуйте ещё раз')
+    } finally {
+      setBusy(false)
     }
-    router.push('/admin')
-    router.refresh()
   }
 
   const inputCls =
     'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-500'
 
   return (
-    <form onSubmit={submit} className="grid gap-6 lg:grid-cols-2">
+    <form onSubmit={submit} onInput={() => setDirty(true)} className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-4">
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Название *</span>
@@ -175,12 +208,36 @@ export default function ObjectForm({ categories, initial }: Props) {
           />
         </label>
 
+        <fieldset className="space-y-3 rounded-xl border border-slate-200 p-4">
+          <legend className="px-1 text-sm font-semibold">Паспорт места</legend>
+          <label className="block">
+            <span className="mb-1 block text-sm">Альтернативные названия через запятую</span>
+            <input value={alternativeNames} onChange={(e) => setAlternativeNames(e.target.value)} maxLength={3000} className={inputCls} />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label><span className="mb-1 block text-sm">Тип объекта</span><input value={objectType} onChange={(e) => setObjectType(e.target.value)} maxLength={200} className={inputCls} /></label>
+            <label><span className="mb-1 block text-sm">Период создания</span><input value={creationPeriod} onChange={(e) => setCreationPeriod(e.target.value)} maxLength={200} className={inputCls} /></label>
+          </div>
+          <label className="block"><span className="mb-1 block text-sm">Материалы через запятую</span><input value={materials} onChange={(e) => setMaterials(e.target.value)} maxLength={3000} className={inputCls} /></label>
+          <label className="block"><span className="mb-1 block text-sm">Охранный статус</span><input value={protectionStatus} onChange={(e) => setProtectionStatus(e.target.value)} maxLength={500} className={inputCls} /></label>
+          <label className="block"><span className="mb-1 block text-sm">Режим доступа</span><textarea value={accessInfo} onChange={(e) => setAccessInfo(e.target.value)} maxLength={2000} rows={2} className={inputCls} /></label>
+          <label className="block"><span className="mb-1 block text-sm">Права на медиа</span><input value={mediaRightsStatus} onChange={(e) => setMediaRightsStatus(e.target.value)} maxLength={200} className={inputCls} /></label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Статус достоверности</span>
+            <select value={verificationStatus} onChange={(e) => setVerificationStatus(e.target.value as typeof verificationStatus)} className={inputCls}>
+              <option value="unverified">Не проверено</option>
+              <option value="needs_review">Требует проверки</option>
+              <option value="verified">Проверено</option>
+            </select>
+          </label>
+        </fieldset>
+
         <div>
           <span className="mb-1 block text-sm font-medium">Секции описания</span>
           <span className="mb-2 block text-xs text-slate-500">
             Дополнительные разделы карточки: «Архитектура», «История» и т.п.
           </span>
-          <SectionsEditor sections={sections} onChange={setSections} />
+          <SectionsEditor sections={sections} onChange={(next) => { setSections(next); setDirty(true) }} />
         </div>
 
         <label className="block">
@@ -228,12 +285,12 @@ export default function ObjectForm({ categories, initial }: Props) {
 
         <div>
           <span className="mb-1 block text-sm font-medium">Фотографии</span>
-          <PhotoUpload photos={photos} onChange={setPhotos} onUploadingChange={setPhotoUploading} />
+          <PhotoUpload photos={photos} onChange={(next) => { setPhotos(next); setDirty(true) }} onUploadingChange={setPhotoUploading} />
         </div>
 
         <div>
           <span className="mb-1 block text-sm font-medium">Видео</span>
-          <VideoUpload videos={videos} onChange={setVideos} onUploadingChange={setVideoUploading} />
+          <VideoUpload videos={videos} onChange={(next) => { setVideos(next); setDirty(true) }} onUploadingChange={setVideoUploading} />
         </div>
 
         <div>
@@ -249,14 +306,14 @@ export default function ObjectForm({ categories, initial }: Props) {
           <AudioUpload
             audioUrl={audioUrl}
             audioText={audioText}
-            onChange={setAudioUrl}
+            onChange={(next) => { setAudioUrl(next); setDirty(true) }}
             onUploadingChange={setAudioUploading}
           />
         </div>
 
         <div>
           <span className="mb-1 block text-sm font-medium">3D-модель (.glb)</span>
-          <ModelUpload modelUrl={modelUrl} onChange={setModelUrl} onUploadingChange={setModelUploading} />
+          <ModelUpload modelUrl={modelUrl} onChange={(next) => { setModelUrl(next); setDirty(true) }} onUploadingChange={setModelUploading} />
         </div>
       </div>
 
@@ -268,6 +325,7 @@ export default function ObjectForm({ categories, initial }: Props) {
           onChange={(newLng, newLat) => {
             setLng(newLng)
             setLat(newLat)
+            setDirty(true)
           }}
         />
         <div className="flex gap-3">
@@ -332,7 +390,10 @@ export default function ObjectForm({ categories, initial }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => router.push('/admin')}
+            onClick={() => {
+              if (dirty && !window.confirm('Есть несохранённые изменения. Уйти без сохранения?')) return
+              router.push('/admin')
+            }}
             className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm hover:bg-slate-100"
           >
             Отмена

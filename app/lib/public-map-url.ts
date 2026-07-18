@@ -1,5 +1,9 @@
 export type PublicMapView = 'map' | 'events' | 'list'
 
+export const PUBLIC_MAP_MEDIA_TYPES = ['audio', 'video', '3d'] as const
+
+export type PublicMapMediaType = typeof PUBLIC_MAP_MEDIA_TYPES[number]
+
 export interface PublicMapCenter {
   lng: number
   lat: number
@@ -15,13 +19,15 @@ export interface MapCameraState {
 /**
  * Состояние публичной карты, которое можно безопасно положить в query string.
  * `null` означает, что параметр не задан; для categoryIds пустой массив отдельно
- * обозначает явно скрытые пользователем категории.
+ * обозначает явно скрытые пользователем категории. Для mediaTypes пустой массив
+ * означает «фильтр форматов не задан» — отдельного явно пустого состояния нет.
  */
 export interface PublicMapUrlState extends MapCameraState {
   view: PublicMapView
   objectId: string | null
   categoryIds: string[] | null
   districtId: number | null
+  mediaTypes: PublicMapMediaType[]
   searchQuery: string | null
 }
 
@@ -32,6 +38,7 @@ export const DEFAULT_PUBLIC_MAP_URL_STATE: Readonly<PublicMapUrlState> = {
   objectId: null,
   categoryIds: null,
   districtId: null,
+  mediaTypes: [],
   searchQuery: null,
   center: null,
   zoom: null,
@@ -40,6 +47,7 @@ export const DEFAULT_PUBLIC_MAP_URL_STATE: Readonly<PublicMapUrlState> = {
 }
 
 const VIEW_VALUES = new Set<PublicMapView>(['map', 'events', 'list'])
+const MEDIA_TYPE_VALUES = new Set<string>(PUBLIC_MAP_MEDIA_TYPES)
 const DECIMAL_NUMBER = /^-?(?:\d+(?:\.\d*)?|\.\d+)$/
 const POSITIVE_INTEGER = /^\d+$/
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
@@ -53,6 +61,7 @@ const OWNED_QUERY_KEYS = [
   'object',
   'category',
   'district',
+  'media',
   'q',
   'lng',
   'lat',
@@ -114,6 +123,18 @@ function readCategoryIds(values: readonly unknown[]): string[] {
   return [...new Set(ids)].sort(compareStrings).slice(0, MAX_CATEGORY_COUNT)
 }
 
+/**
+ * Канонический вид — повторяющиеся `media=`, как у `category=`. На вход также
+ * принимаем запись через запятую (`media=audio,video`) из старых или ручных ссылок.
+ */
+function readMediaTypes(values: readonly unknown[]): PublicMapMediaType[] {
+  const types = values
+    .flatMap((value) => (typeof value === 'string' ? value.split(',') : []))
+    .map((value) => value.trim())
+    .filter((value): value is PublicMapMediaType => MEDIA_TYPE_VALUES.has(value))
+  return [...new Set(types)].sort(compareStrings)
+}
+
 function roundTo(value: number, precision: number): number {
   const factor = 10 ** precision
   const rounded = Math.round(value * factor) / factor
@@ -171,6 +192,7 @@ export function decodeMapUrl(
       ? readCategoryIds(params.getAll('category'))
       : null,
     districtId: readDistrictId(params.get('district')),
+    mediaTypes: readMediaTypes(params.getAll('media')),
     searchQuery: readSearchQuery(params.get('q')),
     center: lng !== null && lat !== null ? { lng, lat } : null,
     zoom: readBoundedNumber(
@@ -213,6 +235,10 @@ function encodeOwnedMapUrlState(
 
   const districtId = readDistrictId(state.districtId)
   if (districtId !== null) params.set('district', String(districtId))
+
+  if (Array.isArray(state.mediaTypes)) {
+    readMediaTypes(state.mediaTypes).forEach((type) => params.append('media', type))
+  }
 
   const searchQuery = readSearchQuery(state.searchQuery)
   if (searchQuery) params.set('q', searchQuery)

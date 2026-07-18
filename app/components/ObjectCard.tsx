@@ -7,6 +7,8 @@ import { publicSiteOrigin } from '@/lib/seo'
 import AudioGuide from './AudioGuide'
 import ObjectMediaGallery from './ObjectMediaGallery'
 import ObjectSections from './ObjectSections'
+import ObjectPassport from './ObjectPassport'
+import MemoryGraphSection from './MemoryGraphSection'
 import ReportIssue from './ReportIssue'
 import usePlaceProgress from './usePlaceProgress'
 
@@ -393,6 +395,8 @@ export default function ObjectCard({ id, onClose }: Props) {
             <AudioGuide audioUrl={data.audioUrl} audioText={data.audioText} />
 
             <ObjectSections objectId={data.id} description={data.description} sections={data.sections} />
+            <ObjectPassport object={data} />
+            <MemoryGraphSection objectId={data.id} />
 
             {DONATION_URL && (
               <a

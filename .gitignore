@@ -16,3 +16,7 @@ __pycache__/
 app/test-results/
 app/playwright-report/
 app/blob-report/
+
+# Тяжёлые артефакты презентации (пересобираются build-pptx.js)
+presentation/*.pptx
+presentation/screenshots/

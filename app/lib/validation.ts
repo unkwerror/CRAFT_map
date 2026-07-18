@@ -49,6 +49,14 @@ export const objectInputSchema = z.object({
   modelUrl: optionalUploadsPathSchema,
   published: z.boolean().default(true),
   sortWeight: z.number().int().min(-1000).max(1000).default(0),
+  alternativeNames: z.array(z.string().trim().min(1).max(300)).max(30).default([]),
+  objectType: z.string().trim().max(200).nullish(),
+  creationPeriod: z.string().trim().max(200).nullish(),
+  protectionStatus: z.string().trim().max(500).nullish(),
+  materials: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
+  accessInfo: z.string().trim().max(2000).nullish(),
+  mediaRightsStatus: z.string().trim().max(200).nullish(),
+  verificationStatus: z.enum(['unverified', 'needs_review', 'verified']).default('unverified'),
 })
 
 export type ObjectInput = z.infer<typeof objectInputSchema>
