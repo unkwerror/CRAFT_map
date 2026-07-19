@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import SearchBar from './SearchBar'
 import CategoryChips from './CategoryChips'
-import EventsPanel from './EventsPanel'
 import MapModeNav from './MapModeNav'
 import ObjectCard from './ObjectCard'
 import MapPreloader from './MapPreloader'
@@ -35,6 +34,7 @@ const MapView = dynamic(() => import('./MapView'), {
     </div>
   ),
 })
+const EventsPanel = dynamic(() => import('./EventsPanel'), { ssr: false })
 const RoutesPanel = dynamic(() => import('./RoutesPanel'), { ssr: false })
 const PeoplePanel = dynamic(() => import('./PeoplePanel'), { ssr: false })
 const RouteNavigator = dynamic(() => import('./RouteNavigator'), { ssr: false })

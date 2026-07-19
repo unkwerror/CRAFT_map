@@ -83,7 +83,7 @@ test('Back/Forward восстанавливает афишу и памятник
 
 test('афиша доступна с клавиатуры и имеет фильтры периода', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Мероприятия' }).click()
+  await page.getByRole('button', { name: 'Афиша' }).click()
   await expect(page.getByRole('searchbox', { name: 'Найти мероприятие' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Сегодня' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Выходные' })).toBeVisible()
@@ -97,7 +97,7 @@ test('карта, список и мероприятия доступны чер
   await expect(navigation).toHaveCount(1)
   await expect(navigation.getByRole('button', { name: 'Карта' })).toBeVisible()
   await expect(navigation.getByRole('button', { name: 'Список' })).toBeVisible()
-  await expect(navigation.getByRole('button', { name: 'Мероприятия' })).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Афиша' })).toBeVisible()
   await expect(page.locator('[data-places-view-toggle]')).toHaveCount(0)
 
   await navigation.getByRole('button', { name: 'Список' }).click()
