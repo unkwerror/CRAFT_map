@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { pg } from '@/lib/db'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+import { absoluteSiteUrl } from '@/lib/seo'
 import { shortLinkCodeSchema, shortLinkTargetPath } from '@/lib/short-links'
 
 export const dynamic = 'force-dynamic'
@@ -48,5 +49,6 @@ export async function GET(req: NextRequest, { params }: Params) {
   } catch (error) {
     console.error('qr_open analytics failed', error)
   }
-  return NextResponse.redirect(new URL(path, req.nextUrl.origin), 307)
+  // За прокси req.nextUrl.origin — внутренний 0.0.0.0:3000; публичный origin берём из seo-хелпера.
+  return NextResponse.redirect(absoluteSiteUrl(path), 307)
 }
