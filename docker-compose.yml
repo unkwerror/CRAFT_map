@@ -56,6 +56,8 @@ services:
       FEATURE_AR_ENABLED: ${FEATURE_AR_ENABLED:-false}
       UPLOADS_DIR: /data/uploads
       UPLOAD_CLEANUP_GRACE_HOURS: ${UPLOAD_CLEANUP_GRACE_HOURS:-24}
+      # Внутренний пешеходный роутинг (линии маршрутов по улицам); без него — прямые сегменты.
+      OSRM_URL: ${OSRM_URL:-http://osrm:5000}
       NODE_ENV: production
     volumes:
       - uploads:/data/uploads
@@ -70,6 +72,23 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Self-hosted пешеходный роутинг (OSRM, вырезка Тюмени): только внутренняя docker-сеть.
+  # Данные готовятся один раз на хосте в /opt/osrm/data (см. docs/pamyat-roadmap-progress.md).
+  osrm:
+    image: osrm/osrm-backend:v5.25.0
+    restart: unless-stopped
+    mem_limit: 512m
+    command: osrm-routed --algorithm mld /data/tyumen.osrm
+    volumes:
+      - /opt/osrm/data:/data:ro
+    expose:
+      - "5000"
     logging:
       driver: json-file
       options:

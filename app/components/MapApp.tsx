@@ -720,14 +720,20 @@ export default function MapApp({
     })
   }, [changeView])
 
+  // Крестик окна закрывает всё: и окно, и линию маршрута на карте (решение владельца).
   const closeRoutes = useCallback(() => {
-    changeView('map')
+    setPreviewId(null)
+    setSelectedId(null)
+    setRouteSlug(null)
+    setActiveView('map')
+    setPlacesView('map')
+    pushUrlState({ view: 'map', objectId: null, routeSlug: null })
     window.requestAnimationFrame(() => {
       Array.from(document.querySelectorAll<HTMLElement>('[data-map-mode-map]'))
         .find((element) => element.offsetParent !== null)
         ?.focus()
     })
-  }, [changeView])
+  }, [pushUrlState])
 
   const openPeople = useCallback(() => {
     setPreviewId(null)
@@ -820,6 +826,7 @@ export default function MapApp({
         activeDistrictId={activeDistrict}
         fitDistrict={fitDistrict}
         routeStops={routeOverlayStops}
+        routeLegs={routeDetail?.status === 'ready' ? routeDetail.data?.legs ?? null : null}
         fitRoute={fitRoute}
         camera={camera}
         onSelect={(id) => {

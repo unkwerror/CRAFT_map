@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { RouteLeg } from './route-legs'
 
 export const routeModeSchema = z.enum(['walking', 'bicycle', 'car'])
 export const routeInputSchema = z.object({
@@ -49,5 +50,9 @@ export interface PublicRoute {
   estimatedDurationMinutes: number | null; distanceMeters: number | null
   difficulty: string | null; ageGroup: string | null; accessibilityProfile: Record<string, unknown>
   offlinePackageVersion: number; stops: PublicRouteStop[]
+  /** Сегменты между точками по улицам (или прямые с оценкой) и суммарное пешеходное время. */
+  legs?: RouteLeg[]
+  walkSeconds?: number | null
+  walkMeters?: number | null
 }
 

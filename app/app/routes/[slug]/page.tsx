@@ -7,6 +7,8 @@ import RouteMap from '@/components/RouteMap'
 import RouteWalk from '@/components/RouteWalk'
 import { pg } from '@/lib/db'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+import { formatWalkMinutes, totalWalk, type RouteLeg } from '@/lib/route-legs'
+import { ensureRouteLegs } from '@/lib/route-legs-server'
 import type { PublicRouteStop } from '@/lib/routes'
 
 export const dynamic = 'force-dynamic'
@@ -67,12 +69,13 @@ export default async function RoutePage({ params }: Params) {
   const route = await loadRoute(slug)
   if (!route) notFound()
 
-  const stops = await pg<PublicRouteStop[]>`
+  const stops = await pg<(PublicRouteStop & { pathToNext: RouteLeg | null })[]>`
     select rs.id, rs.object_id as "objectId", o.title, o.address,
       st_x(o.geom) as lng, st_y(o.geom) as lat, rs.position,
       rs.arrival_radius_meters as "arrivalRadiusMeters",
       rs.recommended_duration_minutes as "recommendedDurationMinutes",
       rs.intro_text as "introText", rs.directions_text as "directionsText",
+      rs.path_to_next as "pathToNext",
       o.photos->0->>'thumb' as thumb,
       coalesce(sa.audio_url, fa.audio_url, o.audio_url) as "audioUrl",
       coalesce(sa.script_text, fa.script_text, o.audio_text) as "audioText",
@@ -94,6 +97,8 @@ export default async function RoutePage({ params }: Params) {
     lng: stop.lng,
     number: index + 1,
   }))
+  const legs = await ensureRouteLegs(route.id, stops)
+  const walk = totalWalk(legs)
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-16 pt-8">
@@ -117,6 +122,11 @@ export default async function RoutePage({ params }: Params) {
               {(route.distance / 1000).toFixed(1).replace('.', ',')} км
             </span>
           )}
+          {legs.length > 0 && (
+            <span className="rounded-full border border-[var(--hairline)] bg-white/[0.03] px-3 py-1.5">
+              пешком {formatWalkMinutes(walk.seconds)}
+            </span>
+          )}
           {route.difficulty && (
             <span className="rounded-full border border-[var(--hairline)] bg-white/[0.03] px-3 py-1.5">{route.difficulty}</span>
           )}
@@ -125,7 +135,7 @@ export default async function RoutePage({ params }: Params) {
 
       {stops.length > 0 && (
         <div className="mt-6">
-          <RouteMap stops={mapStops} />
+          <RouteMap stops={mapStops} legs={legs} />
         </div>
       )}
 

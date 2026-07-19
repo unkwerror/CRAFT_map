@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import OfflineRoutePackage from './OfflineRoutePackage'
 import RouteWalk from './RouteWalk'
+import { formatWalkMinutes } from '@/lib/route-legs'
 import type { PublicRoute } from '@/lib/routes'
 
 export interface RouteListItem {
@@ -214,7 +215,11 @@ export default function RoutesPanel({
             {activeDetail?.status === 'ready' && activeDetail.data && (
               <div className="mt-4">
                 <h3 className="text-[22px] font-[650] leading-tight tracking-[-0.01em]">{activeDetail.data.title}</h3>
-                <p className="mt-1.5 text-[13px] text-[var(--ink-subtle)]">{routeStats(activeDetail.data)}</p>
+                <p className="mt-1.5 text-[13px] text-[var(--ink-subtle)]">
+                  {routeStats(activeDetail.data)}
+                  {typeof activeDetail.data.walkSeconds === 'number' && activeDetail.data.walkSeconds > 0 &&
+                    ` · пешком ${formatWalkMinutes(activeDetail.data.walkSeconds)}`}
+                </p>
                 {activeDetail.data.summary && (
                   <p className="mt-3 text-sm leading-6 text-[var(--ink-muted)]">{activeDetail.data.summary}</p>
                 )}

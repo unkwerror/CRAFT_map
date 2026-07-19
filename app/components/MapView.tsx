@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { resolveMapStyle, TYUMEN_CENTER } from '@/lib/map-style'
 import type { MapCameraState } from '@/lib/public-map-url'
+import { formatWalkMinutes, type RouteLeg as RouteLegType } from '@/lib/route-legs'
 import type { CategoryDto } from '@/lib/types'
 
 let protocolAdded = false
@@ -26,6 +27,8 @@ export interface RouteOverlayStop {
   number: number
 }
 
+export type { RouteLeg } from '@/lib/route-legs'
+
 export interface MapViewProps {
   categories: CategoryDto[]
   /** уже отфильтрованные объекты */
@@ -39,6 +42,8 @@ export interface MapViewProps {
   fitDistrict: { districtId: number; tick: number } | null
   /** Активный маршрут: линия и нумерованные точки поверх объектов. */
   routeStops: RouteOverlayStop[] | null
+  /** Сегменты по улицам с временем пешком; без них линия строится напрямую между точками. */
+  routeLegs: RouteLegType[] | null
   /** fitBounds на маршрут; tick — чтобы повторный выбор срабатывал. */
   fitRoute: { tick: number } | null
   /** Камера из shareable URL; null-поля восстанавливают обзор города. */
@@ -150,6 +155,7 @@ export default function MapView({
   activeDistrictId,
   fitDistrict,
   routeStops,
+  routeLegs,
   fitRoute,
   camera,
   onSelect,
@@ -686,6 +692,7 @@ export default function MapView({
     const map = mapRef.current
     if (!map || !ready) return
     const stops = routeStops ?? []
+    const legs = (routeLegs ?? []).filter((leg) => leg.coordinates.length >= 2)
     const stopsData: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
       features: stops.map((stop) => ({
@@ -696,21 +703,42 @@ export default function MapView({
     }
     const lineData: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
-      features: stops.length >= 2
-        ? [{
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: stops.map((stop) => [stop.lng, stop.lat]) },
+      features: legs.length
+        ? legs.map((leg) => ({
+            type: 'Feature' as const,
+            geometry: { type: 'LineString' as const, coordinates: leg.coordinates },
             properties: {},
-          }]
-        : [],
+          }))
+        : stops.length >= 2
+          ? [{
+              type: 'Feature' as const,
+              geometry: { type: 'LineString' as const, coordinates: stops.map((stop) => [stop.lng, stop.lat]) },
+              properties: {},
+            }]
+          : [],
+    }
+    // Подпись времени пешком — на середине каждого сегмента.
+    const timesData: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: legs.map((leg) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Point' as const,
+          coordinates: leg.coordinates[Math.floor(leg.coordinates.length / 2)]!,
+        },
+        properties: { label: formatWalkMinutes(leg.seconds) },
+      })),
     }
     const stopsSource = map.getSource('route-overlay-stops') as maplibregl.GeoJSONSource | undefined
     const lineSource = map.getSource('route-overlay-path') as maplibregl.GeoJSONSource | undefined
-    if (stopsSource && lineSource) {
+    const timesSource = map.getSource('route-overlay-times') as maplibregl.GeoJSONSource | undefined
+    if (stopsSource && lineSource && timesSource) {
       stopsSource.setData(stopsData)
       lineSource.setData(lineData)
+      timesSource.setData(timesData)
     } else {
       map.addSource('route-overlay-path', { type: 'geojson', data: lineData })
+      map.addSource('route-overlay-times', { type: 'geojson', data: timesData })
       map.addSource('route-overlay-stops', { type: 'geojson', data: stopsData })
       map.addLayer({
         id: 'route-overlay-line',
@@ -742,12 +770,29 @@ export default function MapView({
         },
         paint: { 'text-color': '#10243a' },
       })
+      map.addLayer({
+        id: 'route-overlay-time-labels',
+        type: 'symbol',
+        source: 'route-overlay-times',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-font': labelFontRef.current,
+          'text-size': 11.5,
+          'text-offset': [0, -0.8],
+          'text-padding': 4,
+        },
+        paint: {
+          'text-color': '#f6dfae',
+          'text-halo-color': '#0d1720',
+          'text-halo-width': 1.8,
+        },
+      })
     }
     // Слои объектов пересоздаются позже — маршрут держим над ними.
-    for (const layerId of ['route-overlay-line', 'route-stops-overlay', 'route-stops-overlay-number']) {
+    for (const layerId of ['route-overlay-line', 'route-overlay-time-labels', 'route-stops-overlay', 'route-stops-overlay-number']) {
       if (map.getLayer(layerId)) map.moveLayer(layerId)
     }
-  }, [ready, routeStops, objects])
+  }, [ready, routeStops, routeLegs, objects])
 
   // fitBounds на активный маршрут; на десктопе правый край занят окном «Маршруты».
   useEffect(() => {
