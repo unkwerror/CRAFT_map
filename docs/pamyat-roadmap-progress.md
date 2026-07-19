@@ -175,3 +175,11 @@
 - Rate limit аналитики, CSP `unsafe-inline`, race в версионировании контента — задачи аудита вне UI/UX.
 - Смена пароля/роли в UsersManager и редактирование уже созданных людей — требуют новых API-эндпоинтов.
 - Паспорт и «Городская память» на SSR-странице `/object/[id]`.
+
+## 19.07.2026 — Включение публичных разделов на проде (по команде владельца)
+
+- В `/opt/CRAFT_map/.env` включены `FEATURE_ROUTES_ENABLED`, `FEATURE_OFFLINE_PACKAGES_ENABLED`, `FEATURE_KNOWLEDGE_GRAPH_ENABLED`, `FEATURE_TIMELINE_ENABLED`, `FEATURE_QR_CAMPAIGNS_ENABLED`; `docker compose up -d app`. Бэкап env: `.env.bak-2026-07-19`.
+- Флаги нереализованных фаз (condition registry, community archive, education, multilingual, AI guide, partner portal, AR) и `FEATURE_ROUTE_GPS_AUTOPLAY_ENABLED` остаются выключенными — авто-воспроизведение по GPS не включается сознательно (бриф: никакого неожиданного autoplay).
+- Смоук: `/routes` и `/people` — 200 с корректными пустыми состояниями, sitemap содержит оба раздела, `/admin/qr` доступен; входы «Маршруты»/«Люди» появились в мобильной панели списка и в десктопной шапке (скриншоты прода сняты).
+- Контента в разделах пока нет: маршруты и биографии создаются в `/admin/routes` и `/admin/memory` и публикуются через редакционный workflow (draft → review → approved → published).
+- Откат: удалить пять строк из `.env` (или вернуть `.env.bak-2026-07-19`) и `docker compose up -d app`.
