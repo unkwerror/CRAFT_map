@@ -124,7 +124,7 @@ export default async function RoutePage({ params }: Params) {
           )}
           {legs.length > 0 && (
             <span className="rounded-full border border-[var(--hairline)] bg-white/[0.03] px-3 py-1.5">
-              пешком {formatWalkMinutes(walk.seconds)}
+              в пути {formatWalkMinutes(walk.seconds)}
             </span>
           )}
           {route.difficulty && (

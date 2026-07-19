@@ -218,7 +218,7 @@ export default function RoutesPanel({
                 <p className="mt-1.5 text-[13px] text-[var(--ink-subtle)]">
                   {routeStats(activeDetail.data)}
                   {typeof activeDetail.data.walkSeconds === 'number' && activeDetail.data.walkSeconds > 0 &&
-                    ` · пешком ${formatWalkMinutes(activeDetail.data.walkSeconds)}`}
+                    ` · в пути ${formatWalkMinutes(activeDetail.data.walkSeconds)}`}
                 </p>
                 {activeDetail.data.summary && (
                   <p className="mt-3 text-sm leading-6 text-[var(--ink-muted)]">{activeDetail.data.summary}</p>
