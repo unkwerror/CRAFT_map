@@ -131,6 +131,15 @@ export default async function RoutePage({ params }: Params) {
             <span className="rounded-full border border-[var(--hairline)] bg-white/[0.03] px-3 py-1.5">{route.difficulty}</span>
           )}
         </p>
+        <a
+          href={`/?route=${slug}&nav=1`}
+          className="btn-accent mt-5 inline-flex min-h-12 items-center gap-2 rounded-xl px-5 text-[15px] font-semibold"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="m12 2 7 19-7-5-7 5 7-19Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+          </svg>
+          Пойти по маршруту
+        </a>
       </header>
 
       {stops.length > 0 && (

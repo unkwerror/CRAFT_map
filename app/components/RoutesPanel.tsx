@@ -28,8 +28,13 @@ interface Props {
   offlineEnabled: boolean
   selectedSlug: string | null
   detail: RouteDetailState | null
+  /** Меняется после выхода из навигации — RouteWalk перечитывает гостевой прогресс. */
+  walkKey?: number
   onSelectRoute: (slug: string | null) => void
   onRetryDetail: () => void
+  onStartNavigation: () => void
+  /** Свернуть окно, оставив маршрут на карте (мобильный просмотр). */
+  onCollapse: () => void
   onClose: () => void
   onSelectObject: (id: string) => void
 }
@@ -68,8 +73,11 @@ export default function RoutesPanel({
   offlineEnabled,
   selectedSlug,
   detail,
+  walkKey = 0,
   onSelectRoute,
   onRetryDetail,
+  onStartNavigation,
+  onCollapse,
   onClose,
   onSelectObject,
 }: Props) {
@@ -229,6 +237,29 @@ export default function RoutesPanel({
                   </p>
                 )}
 
+                <div className="mt-5 space-y-2">
+                  <button
+                    type="button"
+                    onClick={onStartNavigation}
+                    className="btn-accent flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold"
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="m12 2 7 19-7-5-7 5 7-19Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                    </svg>
+                    Пойти по маршруту
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCollapse}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[var(--hairline)] px-4 text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:border-[var(--hairline-strong)] hover:text-[var(--ink)] xl:hidden"
+                  >
+                    Показать на карте
+                  </button>
+                  <p className="text-xs leading-5 text-[var(--ink-subtle)]">
+                    Навигация: расстояние до точки по GPS, отметки прихода и аудиогид прямо на карте.
+                  </p>
+                </div>
+
                 <section className="mt-6" aria-label="Точки маршрута">
                   <h4 className="text-sm font-semibold uppercase tracking-wide text-[var(--ink-subtle)]">
                     Точки маршрута
@@ -268,6 +299,7 @@ export default function RoutesPanel({
                   <OfflineRoutePackage slug={activeDetail.slug} version={activeDetail.data.offlinePackageVersion} />
                 )}
                 <RouteWalk
+                  key={`walk-${activeDetail.slug}-${walkKey}`}
                   routeId={activeDetail.data.id}
                   version={activeDetail.data.offlinePackageVersion}
                   stops={activeDetail.data.stops}

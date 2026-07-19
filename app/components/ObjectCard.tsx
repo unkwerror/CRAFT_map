@@ -14,9 +14,18 @@ import usePlaceProgress from './usePlaceProgress'
 
 const DONATION_URL = process.env.NEXT_PUBLIC_DONATION_URL
 
+/** Листание точек маршрута в режиме навигации — рендерится внутри карточки, чтобы работать при inert-соседях. */
+export interface ObjectCardNavStrip {
+  index: number
+  total: number
+  onPrev: (() => void) | null
+  onNext: (() => void) | null
+}
+
 interface Props {
   id: string
   onClose: () => void
+  navStrip?: ObjectCardNavStrip | null
 }
 
 function formatDate(iso: string): string {
@@ -52,7 +61,7 @@ function EventLinks({ event }: { event: EventDto }) {
 }
 
 /** Карточка объекта: панель справа (desktop) / bottom sheet (mobile) */
-export default function ObjectCard({ id, onClose }: Props) {
+export default function ObjectCard({ id, onClose, navStrip = null }: Props) {
   const [data, setData] = useState<ObjectFull | null>(null)
   const [error, setError] = useState(false)
   const [eventsOpen, setEventsOpen] = useState(false)
@@ -247,6 +256,31 @@ export default function ObjectCard({ id, onClose }: Props) {
           <path d="m4 4 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
         </svg>
       </button>
+      {navStrip && (
+        <div className="absolute left-3 top-3 z-30 flex items-center gap-0.5 rounded-full border border-white/10 bg-black/60 py-1 pl-1 pr-1 backdrop-blur">
+          <button
+            type="button"
+            disabled={!navStrip.onPrev}
+            onClick={() => navStrip.onPrev?.()}
+            aria-label="Предыдущая точка маршрута"
+            className="grid h-9 w-9 place-items-center rounded-full text-white/85 transition-colors hover:text-[var(--accent)] disabled:opacity-35"
+          >
+            ←
+          </button>
+          <span className="px-1 text-[12.5px] font-semibold text-white/90">
+            Точка {navStrip.index + 1} из {navStrip.total}
+          </span>
+          <button
+            type="button"
+            disabled={!navStrip.onNext}
+            onClick={() => navStrip.onNext?.()}
+            aria-label="Следующая точка маршрута"
+            className="grid h-9 w-9 place-items-center rounded-full text-white/85 transition-colors hover:text-[var(--accent)] disabled:opacity-35"
+          >
+            →
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="p-6 pt-16" role="alert">

@@ -44,6 +44,12 @@ export interface MapViewProps {
   routeStops: RouteOverlayStop[] | null
   /** Сегменты по улицам с временем пешком; без них линия строится напрямую между точками. */
   routeLegs: RouteLegType[] | null
+  /** Номер текущей цели в режиме навигации — подсвечивается кольцом. */
+  routeActiveStopNumber: number | null
+  /** Позиция пользователя в режиме навигации (своя точка, без GeolocateControl). */
+  userPosition: { lng: number; lat: number } | null
+  /** fitBounds на произвольный набор точек (навигация: «я + цель»). */
+  fitPoints: { points: [number, number][]; tick: number } | null
   /** fitBounds на маршрут; tick — чтобы повторный выбор срабатывал. */
   fitRoute: { tick: number } | null
   /** Камера из shareable URL; null-поля восстанавливают обзор города. */
@@ -156,6 +162,9 @@ export default function MapView({
   fitDistrict,
   routeStops,
   routeLegs,
+  routeActiveStopNumber,
+  userPosition,
+  fitPoints,
   fitRoute,
   camera,
   onSelect,
@@ -747,6 +756,19 @@ export default function MapView({
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#efad45', 'line-width': 3.5, 'line-opacity': 0.85 },
       })
+      // Кольцо текущей цели навигации — под маркерами точек.
+      map.addLayer({
+        id: 'route-stop-active-halo',
+        type: 'circle',
+        source: 'route-overlay-stops',
+        filter: ['==', ['get', 'number'], -1],
+        paint: {
+          'circle-color': 'rgba(239, 173, 69, 0.22)',
+          'circle-radius': 21,
+          'circle-stroke-color': '#efad45',
+          'circle-stroke-width': 2,
+        },
+      })
       map.addLayer({
         id: 'route-stops-overlay',
         type: 'circle',
@@ -789,10 +811,73 @@ export default function MapView({
       })
     }
     // Слои объектов пересоздаются позже — маршрут держим над ними.
-    for (const layerId of ['route-overlay-line', 'route-overlay-time-labels', 'route-stops-overlay', 'route-stops-overlay-number']) {
+    for (const layerId of ['route-overlay-line', 'route-overlay-time-labels', 'route-stop-active-halo', 'route-stops-overlay', 'route-stops-overlay-number']) {
       if (map.getLayer(layerId)) map.moveLayer(layerId)
     }
   }, [ready, routeStops, routeLegs, objects])
+
+  // Подсветка текущей цели навигации.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !map.getLayer('route-stop-active-halo')) return
+    map.setFilter('route-stop-active-halo', ['==', ['get', 'number'], routeActiveStopNumber ?? -1])
+  }, [ready, routeActiveStopNumber, routeStops, objects])
+
+  // Точка пользователя в режиме навигации.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const data: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: userPosition
+        ? [{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [userPosition.lng, userPosition.lat] },
+            properties: {},
+          }]
+        : [],
+    }
+    const source = map.getSource('nav-user') as maplibregl.GeoJSONSource | undefined
+    if (source) {
+      source.setData(data)
+    } else {
+      map.addSource('nav-user', { type: 'geojson', data })
+      map.addLayer({
+        id: 'nav-user-halo',
+        type: 'circle',
+        source: 'nav-user',
+        paint: { 'circle-color': 'rgba(74, 163, 255, 0.25)', 'circle-radius': 16 },
+      })
+      map.addLayer({
+        id: 'nav-user-dot',
+        type: 'circle',
+        source: 'nav-user',
+        paint: {
+          'circle-color': '#4aa3ff',
+          'circle-radius': 7,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2.5,
+        },
+      })
+    }
+    for (const layerId of ['nav-user-halo', 'nav-user-dot']) {
+      if (map.getLayer(layerId)) map.moveLayer(layerId)
+    }
+  }, [ready, userPosition, objects])
+
+  // Кадрирование на «я + цель» в навигации.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !fitPoints || fitPoints.points.length === 0) return
+    const bounds = new maplibregl.LngLatBounds()
+    for (const point of fitPoints.points) bounds.extend(point)
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    map.fitBounds(bounds, {
+      padding: { top: 130, bottom: 260, left: 70, right: 70 },
+      maxZoom: 17,
+      duration: reducedMotion ? 0 : 650,
+    })
+  }, [ready, fitPoints])
 
   // fitBounds на активный маршрут; на десктопе правый край занят окном «Маршруты».
   useEffect(() => {

@@ -26,6 +26,7 @@ describe('decodeMapUrl', () => {
       mediaTypes: ['audio', 'video'],
       searchQuery: 'Пётр Первый',
       routeSlug: null,
+      navMode: false,
       personSlug: null,
       center: { lng: 65.53432, lat: 57.15299 },
       zoom: 11.35,
@@ -138,6 +139,15 @@ describe('routes and people params', () => {
     const state = decodeMapUrl('route=..%2Fetc&person=%D0%98%D0%B2%D0%B0%D0%BD')
     expect(state.routeSlug).toBeNull()
     expect(state.personSlug).toBeNull()
+  })
+
+  it('nav принимается только вместе с маршрутом', () => {
+    expect(decodeMapUrl('route=demo&nav=1').navMode).toBe(true)
+    expect(decodeMapUrl('nav=1').navMode).toBe(false)
+    const params = encodeMapUrl(new URLSearchParams(), {
+      ...DEFAULT_PUBLIC_MAP_URL_STATE, routeSlug: 'demo', navMode: true,
+    })
+    expect(params.get('nav')).toBe('1')
   })
 
   it('кодирует route и person в канонический query', () => {

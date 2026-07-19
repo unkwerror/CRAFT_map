@@ -31,6 +31,8 @@ export interface PublicMapUrlState extends MapCameraState {
   searchQuery: string | null
   /** Выбранный маршрут: линия и точки на карте + карточка в окне «Маршруты». */
   routeSlug: string | null
+  /** Режим навигации по выбранному маршруту (HUD поверх карты). */
+  navMode: boolean
   /** Открытая биография в окне «Люди». */
   personSlug: string | null
 }
@@ -45,6 +47,7 @@ export const DEFAULT_PUBLIC_MAP_URL_STATE: Readonly<PublicMapUrlState> = {
   mediaTypes: [],
   searchQuery: null,
   routeSlug: null,
+  navMode: false,
   personSlug: null,
   center: null,
   zoom: null,
@@ -68,6 +71,7 @@ const OWNED_QUERY_KEYS = [
   'view',
   'object',
   'route',
+  'nav',
   'person',
   'category',
   'district',
@@ -212,6 +216,7 @@ export function decodeMapUrl(
     mediaTypes: readMediaTypes(params.getAll('media')),
     searchQuery: readSearchQuery(params.get('q')),
     routeSlug: readSlug(params.get('route')),
+    navMode: params.get('nav') === '1' && readSlug(params.get('route')) !== null,
     personSlug: readSlug(params.get('person')),
     center: lng !== null && lat !== null ? { lng, lat } : null,
     zoom: readBoundedNumber(
@@ -248,6 +253,7 @@ function encodeOwnedMapUrlState(
 
   const routeSlug = readSlug(state.routeSlug)
   if (routeSlug) params.set('route', routeSlug)
+  if (routeSlug && state.navMode === true) params.set('nav', '1')
 
   const personSlug = readSlug(state.personSlug)
   if (personSlug) params.set('person', personSlug)

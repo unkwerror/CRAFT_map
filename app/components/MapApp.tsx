@@ -37,6 +37,7 @@ const MapView = dynamic(() => import('./MapView'), {
 })
 const RoutesPanel = dynamic(() => import('./RoutesPanel'), { ssr: false })
 const PeoplePanel = dynamic(() => import('./PeoplePanel'), { ssr: false })
+const RouteNavigator = dynamic(() => import('./RouteNavigator'), { ssr: false })
 
 interface Props {
   categories: CategoryDto[]
@@ -187,6 +188,13 @@ export default function MapApp({
   const [routeDetail, setRouteDetail] = useState<RouteDetailState | null>(null)
   const [routeRetryTick, setRouteRetryTick] = useState(0)
   const [fitRoute, setFitRoute] = useState<{ tick: number } | null>(null)
+  const [navMode, setNavMode] = useState(
+    routesEnabled && initialUrlState.navMode && initialUrlState.routeSlug !== null
+  )
+  const [navUserPosition, setNavUserPosition] = useState<{ lng: number; lat: number } | null>(null)
+  const [navActiveStop, setNavActiveStop] = useState<number | null>(null)
+  const [fitPoints, setFitPoints] = useState<{ points: [number, number][]; tick: number } | null>(null)
+  const [walkTick, setWalkTick] = useState(0)
   const [placesView, setPlacesView] = useState<PlacesView>(initialView === 'list' ? 'list' : 'map')
   const [searchQuery, setSearchQuery] = useState(initialUrlState.searchQuery ?? '')
   const [camera, setCamera] = useState<MapCameraState>({
@@ -334,6 +342,7 @@ export default function MapApp({
       )
       setPlacesView(nextView === 'list' ? 'list' : 'map')
       setRouteSlug(nextRouteSlug)
+      setNavMode(routesEnabled && decoded.navMode && nextRouteSlug !== null)
       setPersonSlug(nextPersonSlug)
       setActiveCats(nextCategories)
       setActiveDistrict(decoded.districtId)
@@ -725,14 +734,44 @@ export default function MapApp({
     setPreviewId(null)
     setSelectedId(null)
     setRouteSlug(null)
+    setNavMode(false)
     setActiveView('map')
     setPlacesView('map')
-    pushUrlState({ view: 'map', objectId: null, routeSlug: null })
+    pushUrlState({ view: 'map', objectId: null, routeSlug: null, navMode: false })
     window.requestAnimationFrame(() => {
       Array.from(document.querySelectorAll<HTMLElement>('[data-map-mode-map]'))
         .find((element) => element.offsetParent !== null)
         ?.focus()
     })
+  }, [pushUrlState])
+
+  // «Показать на карте»: окно сворачивается, маршрут остаётся (мобильный сценарий просмотра).
+  const collapseRoutes = useCallback(() => {
+    setPreviewId(null)
+    setSelectedId(null)
+    setActiveView('map')
+    setPlacesView('map')
+    pushUrlState({ view: 'map', objectId: null, navMode: false })
+  }, [pushUrlState])
+
+  const enterNavigation = useCallback(() => {
+    setPreviewId(null)
+    setSelectedId(null)
+    setNavMode(true)
+    setActiveView('map')
+    setPlacesView('map')
+    pushUrlState({ view: 'map', objectId: null, navMode: true })
+  }, [pushUrlState])
+
+  const exitNavigation = useCallback(() => {
+    setNavMode(false)
+    setNavUserPosition(null)
+    setNavActiveStop(null)
+    setActiveView('routes')
+    setRoutesMounted(true)
+    // Окно перечитает гостевой прогресс, набранный в навигации.
+    setWalkTick((tick) => tick + 1)
+    pushUrlState({ view: 'routes', objectId: null, navMode: false })
   }, [pushUrlState])
 
   const openPeople = useCallback(() => {
@@ -765,7 +804,8 @@ export default function MapApp({
 
   const clearRoute = useCallback(() => {
     setRouteSlug(null)
-    pushUrlState({ routeSlug: null })
+    setNavMode(false)
+    pushUrlState({ routeSlug: null, navMode: false })
   }, [pushUrlState])
 
   const selectPerson = useCallback((slug: string | null) => {
@@ -814,6 +854,21 @@ export default function MapApp({
     }))
   }, [routeDetail])
 
+  // Листание карточек точек маршрута в режиме навигации.
+  const navSwitcher = useMemo(() => {
+    if (!navMode || !selectedId || routeDetail?.status !== 'ready' || !routeDetail.data) return null
+    const navStops = routeDetail.data.stops
+    const index = navStops.findIndex((stop) => stop.objectId === selectedId)
+    if (index === -1) return null
+    return {
+      index,
+      total: navStops.length,
+      title: navStops[index]!.title,
+      prevId: index > 0 ? navStops[index - 1]!.objectId : null,
+      nextId: index < navStops.length - 1 ? navStops[index + 1]!.objectId : null,
+    }
+  }, [navMode, selectedId, routeDetail])
+
   return (
     <main className="map-shell relative h-dvh w-full overflow-hidden">
       <h1 className="sr-only">Карта памятных мест Тюмени</h1>
@@ -827,6 +882,9 @@ export default function MapApp({
         fitDistrict={fitDistrict}
         routeStops={routeOverlayStops}
         routeLegs={routeDetail?.status === 'ready' ? routeDetail.data?.legs ?? null : null}
+        routeActiveStopNumber={navMode ? navActiveStop : null}
+        userPosition={navMode ? navUserPosition : null}
+        fitPoints={fitPoints}
         fitRoute={fitRoute}
         camera={camera}
         onSelect={(id) => {
@@ -996,7 +1054,18 @@ export default function MapApp({
         </div>
       )}
 
-      {routeSlug && routeDetail?.status === 'ready' && routeDetail.data &&
+      {navMode && routesEnabled && routeSlug && routeDetail?.status === 'ready' && routeDetail.data && (
+        <RouteNavigator
+          route={routeDetail.data}
+          onExit={exitNavigation}
+          onOpenStop={pickObject}
+          onPositionChange={setNavUserPosition}
+          onActiveStopChange={setNavActiveStop}
+          onFocusPoints={(points) => setFitPoints((previous) => ({ points, tick: (previous?.tick ?? 0) + 1 }))}
+        />
+      )}
+
+      {routeSlug && !navMode && routeDetail?.status === 'ready' && routeDetail.data &&
         activeView === 'map' && placesView === 'map' && !selectedId && !showPreloader && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+5rem))] z-[11] flex justify-center px-3 xl:bottom-6">
           <div className="panel fade-in-rise pointer-events-auto flex max-w-full items-center gap-0.5 rounded-full py-1 pl-1 pr-1">
@@ -1039,8 +1108,11 @@ export default function MapApp({
           offlineEnabled={offlinePackagesEnabled}
           selectedSlug={routeSlug}
           detail={routeDetail}
+          walkKey={walkTick}
           onSelectRoute={selectRoute}
           onRetryDetail={() => setRouteRetryTick((tick) => tick + 1)}
+          onStartNavigation={enterNavigation}
+          onCollapse={collapseRoutes}
           onClose={closeRoutes}
           onSelectObject={pickObject}
         />
@@ -1074,7 +1146,18 @@ export default function MapApp({
         />
       )}
 
-      {selectedId && <ObjectCard id={selectedId} onClose={closeObject} />}
+      {selectedId && (
+        <ObjectCard
+          id={selectedId}
+          onClose={closeObject}
+          navStrip={navSwitcher ? {
+            index: navSwitcher.index,
+            total: navSwitcher.total,
+            onPrev: navSwitcher.prevId ? () => pickObject(navSwitcher.prevId!) : null,
+            onNext: navSwitcher.nextId ? () => pickObject(navSwitcher.nextId!) : null,
+          } : null}
+        />
+      )}
 
       {showPreloader && activeView === 'map' && !selectedId && (
         <MapPreloader
