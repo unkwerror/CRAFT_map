@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { resolveMapStyle, TYUMEN_CENTER } from '@/lib/map-style'
 import type { MapCameraState } from '@/lib/public-map-url'
-import { formatWalkMinutes, type RouteLeg as RouteLegType } from '@/lib/route-legs'
+import { formatWalkMinutes, smoothLegCoordinates, type RouteLeg as RouteLegType } from '@/lib/route-legs'
 import type { CategoryDto } from '@/lib/types'
 
 let protocolAdded = false
@@ -715,7 +715,8 @@ export default function MapView({
       features: legs.length
         ? legs.map((leg) => ({
             type: 'Feature' as const,
-            geometry: { type: 'LineString' as const, coordinates: leg.coordinates },
+            // Углы уличной геометрии срезаются для мягкой «навигаторской» линии.
+            geometry: { type: 'LineString' as const, coordinates: smoothLegCoordinates(leg.coordinates) },
             properties: {},
           }))
         : stops.length >= 2
@@ -749,12 +750,38 @@ export default function MapView({
       map.addSource('route-overlay-path', { type: 'geojson', data: lineData })
       map.addSource('route-overlay-times', { type: 'geojson', data: timesData })
       map.addSource('route-overlay-stops', { type: 'geojson', data: stopsData })
+      // Кайма под линией даёт глубину и отделяет маршрут от подложки.
+      map.addLayer({
+        id: 'route-overlay-line-casing',
+        type: 'line',
+        source: 'route-overlay-path',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': 'rgba(9, 17, 25, 0.75)', 'line-width': 8 },
+      })
       map.addLayer({
         id: 'route-overlay-line',
         type: 'line',
         source: 'route-overlay-path',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#efad45', 'line-width': 3.5, 'line-opacity': 0.85 },
+        paint: { 'line-color': '#f2b357', 'line-width': 4.5, 'line-opacity': 0.96 },
+      })
+      // Шевроны направления вдоль линии.
+      map.addLayer({
+        id: 'route-overlay-direction',
+        type: 'symbol',
+        source: 'route-overlay-path',
+        layout: {
+          'symbol-placement': 'line',
+          'symbol-spacing': 110,
+          'text-field': '›',
+          'text-font': labelFontRef.current,
+          'text-size': 14,
+          'text-keep-upright': false,
+          'text-rotation-alignment': 'map',
+          'text-allow-overlap': true,
+          'text-padding': 0,
+        },
+        paint: { 'text-color': '#10243a' },
       })
       // Кольцо текущей цели навигации — под маркерами точек.
       map.addLayer({
@@ -811,7 +838,7 @@ export default function MapView({
       })
     }
     // Слои объектов пересоздаются позже — маршрут держим над ними.
-    for (const layerId of ['route-overlay-line', 'route-overlay-time-labels', 'route-stop-active-halo', 'route-stops-overlay', 'route-stops-overlay-number']) {
+    for (const layerId of ['route-overlay-line-casing', 'route-overlay-line', 'route-overlay-direction', 'route-overlay-time-labels', 'route-stop-active-halo', 'route-stops-overlay', 'route-stops-overlay-number']) {
       if (map.getLayer(layerId)) map.moveLayer(layerId)
     }
   }, [ready, routeStops, routeLegs, objects])

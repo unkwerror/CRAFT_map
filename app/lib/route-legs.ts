@@ -51,6 +51,31 @@ export function totalWalk(legs: RouteLeg[]): { seconds: number; meters: number }
   )
 }
 
+/**
+ * Сглаживание ломаной алгоритмом Чайкина (срезание углов) с сохранением концов.
+ * Чисто презентационное: линия рисуется мягкими дугами, как в больших картографических
+ * сервисах; сохранённая геометрия и расчёт времени не меняются.
+ */
+export function smoothLegCoordinates(
+  coordinates: [number, number][],
+  iterations = 3
+): [number, number][] {
+  let result = coordinates
+  for (let step = 0; step < iterations; step++) {
+    if (result.length < 3) return result
+    const next: [number, number][] = [result[0]!]
+    for (let index = 0; index < result.length - 1; index++) {
+      const [x1, y1] = result[index]!
+      const [x2, y2] = result[index + 1]!
+      next.push([0.75 * x1 + 0.25 * x2, 0.75 * y1 + 0.25 * y2])
+      next.push([0.25 * x1 + 0.75 * x2, 0.25 * y1 + 0.75 * y2])
+    }
+    next.push(result[result.length - 1]!)
+    result = next
+  }
+  return result
+}
+
 export function formatWalkMinutes(seconds: number): string {
   const minutes = Math.max(1, Math.round(seconds / 60))
   if (minutes < 60) return `≈${minutes} мин`

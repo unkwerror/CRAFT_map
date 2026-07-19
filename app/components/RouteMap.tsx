@@ -6,7 +6,7 @@ import { Protocol } from 'pmtiles'
 import { useEffect, useRef } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { resolveMapStyle } from '@/lib/map-style'
-import { formatWalkMinutes, type RouteLeg } from '@/lib/route-legs'
+import { formatWalkMinutes, smoothLegCoordinates, type RouteLeg } from '@/lib/route-legs'
 
 let protocolAdded = false
 
@@ -72,7 +72,7 @@ export default function RouteMap({ stops, legs }: { stops: RouteMapStop[]; legs?
               type: 'FeatureCollection',
               features: walkLegs.map((leg) => ({
                 type: 'Feature' as const,
-                geometry: { type: 'LineString' as const, coordinates: leg.coordinates },
+                geometry: { type: 'LineString' as const, coordinates: smoothLegCoordinates(leg.coordinates) },
                 properties: {},
               })),
             },
@@ -92,11 +92,35 @@ export default function RouteMap({ stops, legs }: { stops: RouteMapStop[]; legs?
             },
           })
           map.addLayer({
+            id: 'route-page-line-casing',
+            type: 'line',
+            source: 'route-page-path',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': 'rgba(9, 17, 25, 0.75)', 'line-width': 8 },
+          })
+          map.addLayer({
             id: 'route-page-line',
             type: 'line',
             source: 'route-page-path',
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': '#efad45', 'line-width': 3.5, 'line-opacity': 0.85 },
+            paint: { 'line-color': '#f2b357', 'line-width': 4.5, 'line-opacity': 0.96 },
+          })
+          map.addLayer({
+            id: 'route-page-direction',
+            type: 'symbol',
+            source: 'route-page-path',
+            layout: {
+              'symbol-placement': 'line',
+              'symbol-spacing': 110,
+              'text-field': '›',
+              'text-font': labelFont,
+              'text-size': 14,
+              'text-keep-upright': false,
+              'text-rotation-alignment': 'map',
+              'text-allow-overlap': true,
+              'text-padding': 0,
+            },
+            paint: { 'text-color': '#10243a' },
           })
           map.addLayer({
             id: 'route-page-time-labels',
