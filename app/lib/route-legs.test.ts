@@ -47,4 +47,6 @@ describe('totalWalk', () => {
 describe('formatWalkMinutes', () => {
   it('короткий сегмент — минимум одна минута', () => expect(formatWalkMinutes(20)).toBe('≈1 мин'))
   it('округляет к ближайшей минуте', () => expect(formatWalkMinutes(290)).toBe('≈5 мин'))
+  it('больше часа — часы и минуты', () => expect(formatWalkMinutes(11350)).toBe('≈3 ч 9 мин'))
+  it('ровно час — без минут', () => expect(formatWalkMinutes(3600)).toBe('≈1 ч'))
 })
