@@ -61,11 +61,19 @@ export default function ObjectsTable({ role }: Props) {
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
 
   async function togglePublished(row: AdminObjectRow) {
-    await fetch(`/api/admin/objects/${row.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ published: !row.published }),
-    })
+    try {
+      const res = await fetch(`/api/admin/objects/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: !row.published }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        window.alert(body?.error ?? 'Не удалось изменить видимость объекта')
+      }
+    } catch {
+      window.alert('Нет соединения с сервером — видимость не изменена')
+    }
     load()
   }
 

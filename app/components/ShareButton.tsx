@@ -27,8 +27,12 @@ export default function ShareButton({ title, label = 'Поделиться' }: {
   }
 
   return (
-    <button type="button" onClick={() => void share()} className="btn-ghost min-h-11 rounded-xl px-4 text-sm">
-      {copied ? 'Ссылка скопирована' : label}
-    </button>
+    <>
+      <button type="button" onClick={() => void share()} className="btn-ghost min-h-11 rounded-xl px-4 text-sm">
+        {copied ? 'Ссылка скопирована' : label}
+      </button>
+      {/* Смена текста кнопки не озвучивается скринридером — дублируем в live region. */}
+      <span aria-live="polite" className="sr-only">{copied ? 'Ссылка скопирована' : ''}</span>
+    </>
   )
 }

@@ -249,7 +249,7 @@ export default function ObjectCard({ id, onClose }: Props) {
       </button>
 
       {error && (
-        <div className="p-6 pt-16">
+        <div className="p-6 pt-16" role="alert">
           <p className="text-sm text-[var(--ink-muted)]">Не удалось загрузить объект.</p>
           <button type="button" onClick={() => setRequestKey((value) => value + 1)} className="btn-accent mt-4 min-h-11 rounded-xl px-4 text-sm">
             Повторить
@@ -257,7 +257,7 @@ export default function ObjectCard({ id, onClose }: Props) {
         </div>
       )}
       {!data && !error && (
-        <div className="object-skeleton" aria-label="Загружаем карточку">
+        <div className="object-skeleton" role="status" aria-label="Загружаем карточку">
           <div className="object-skeleton__media" />
           <div className="space-y-3 p-6">
             <div className="object-skeleton__line w-24" />
@@ -324,6 +324,8 @@ export default function ObjectCard({ id, onClose }: Props) {
                 type="button"
                 onClick={() => toggleVisited(data.id)}
                 aria-pressed={visited}
+                aria-label={visited ? 'Посещено — снять отметку' : 'Отметить место как посещённое'}
+                title={visited ? 'Снять отметку о посещении' : 'Отметить место как посещённое — сохраняется на этом устройстве'}
                 className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-[13px] font-semibold transition-colors ${visited ? 'border-emerald-300/35 bg-emerald-300/10 text-emerald-200' : 'border-[var(--hairline)] bg-white/[0.025] text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}
               >
                 <span aria-hidden>✓</span>

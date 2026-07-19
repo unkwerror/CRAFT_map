@@ -332,6 +332,21 @@ export default function ObjectMediaGallery({ objectId, title, photos, videos, mo
           role="dialog"
           aria-modal="true"
           aria-label="Просмотр фотографии"
+          onTouchStart={(event) => {
+            if ((event.target as HTMLElement).closest('button')) return
+            const touch = event.touches[0]
+            if (touch) touchStart.current = { x: touch.clientX, y: touch.clientY }
+          }}
+          onTouchEnd={(event) => {
+            const start = touchStart.current
+            const touch = event.changedTouches[0]
+            touchStart.current = null
+            if (!start || !touch || photoIndexes.length < 2) return
+            const dx = touch.clientX - start.x
+            const dy = touch.clientY - start.y
+            if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.2) return
+            stepPhoto(dx > 0 ? -1 : 1)
+          }}
         >
           <button ref={lightboxCloseRef} type="button" onClick={() => setLightboxOpen(false)} className="btn-ghost absolute right-3 top-3 z-10 h-12 w-12 text-xl" aria-label="Закрыть фотографию">×</button>
           {photoIndexes.length > 1 && (

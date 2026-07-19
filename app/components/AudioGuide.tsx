@@ -114,13 +114,13 @@ export default function AudioGuide({ audioUrl, audioText }: Props) {
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--ink-muted)]">
             <span aria-live="off">{formatAudioTime(currentTime)} / {formatAudioTime(duration)}</span>
             <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => skip(-15)} className="min-h-9 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label="Назад на 15 секунд">
+              <button type="button" onClick={() => skip(-15)} className="min-h-10 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label="Назад на 15 секунд">
                 −15 сек
               </button>
-              <button type="button" onClick={changeRate} className="min-h-9 min-w-12 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label={`Скорость воспроизведения ${playbackRate}`}>
+              <button type="button" onClick={changeRate} className="min-h-10 min-w-12 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label={`Скорость воспроизведения ${playbackRate}`}>
                 {playbackRate}×
               </button>
-              <button type="button" onClick={() => skip(15)} className="min-h-9 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label="Вперёд на 15 секунд">
+              <button type="button" onClick={() => skip(15)} className="min-h-10 rounded-lg px-2.5 hover:bg-white/[0.06]" aria-label="Вперёд на 15 секунд">
                 +15 сек
               </button>
             </div>

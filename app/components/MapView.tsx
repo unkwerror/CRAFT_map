@@ -196,7 +196,10 @@ export default function MapView({
         dragRotate: true,
         pitchWithRotate: true,
       })
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+      // На тач-устройствах зум — щипком; кнопки «+/−» не занимают правый край экрана.
+      if (window.matchMedia('(pointer: fine)').matches) {
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+      }
       // «Моё местоположение»: кнопка + пульсирующая точка юзера и круг точности.
       // Требует HTTPS (на проде есть). Трекинг слетает в «пассивный» режим при ручном
       // перемещении карты — повторный клик снова центрирует.

@@ -39,6 +39,8 @@ export interface PublicRouteStop {
   directionsText: string | null; audioUrl: string | null; audioText: string | null
   shortAudioUrl?: string | null; shortAudioText?: string | null
   fullAudioUrl?: string | null; fullAudioText?: string | null
+  /** Превью первого фото объекта — для обзорного списка точек на странице маршрута. */
+  thumb?: string | null
 }
 
 export interface PublicRoute {

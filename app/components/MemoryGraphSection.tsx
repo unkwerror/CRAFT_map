@@ -50,7 +50,7 @@ export default function MemoryGraphSection({ objectId }: { objectId: string }) {
   }, [objectId])
 
   if (!relations || !timeline || (!relations.people.length && !relations.events.length && !timeline.length)) return null
-  return <section className="space-y-4 rounded-2xl border border-[var(--hairline)] bg-white/[0.025] p-4" aria-labelledby={`memory-${objectId}`}>
+  return <section className="fade-in-rise space-y-4 rounded-2xl border border-[var(--hairline)] bg-white/[0.025] p-4" aria-labelledby={`memory-${objectId}`}>
     <h3 id={`memory-${objectId}`} className="text-[15px] font-semibold">Городская память</h3>
     {(relations.people.length > 0 || relations.events.length > 0) && <div>
       <h4 className="text-sm font-semibold">Люди и события</h4>

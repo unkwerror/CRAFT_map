@@ -11,7 +11,8 @@
   /* Текст */
   --ink: #e9f1f9;
   --ink-muted: rgba(233, 241, 249, 0.62);
-  --ink-subtle: rgba(233, 241, 249, 0.4);
+  /* Не ниже 4.5:1 на --bg и --surface-2: этим цветом набраны подписи и даты. */
+  --ink-subtle: rgba(233, 241, 249, 0.55);
 
   /* Акцент */
   --accent: #f0a93b;
@@ -318,9 +319,9 @@ textarea {
   transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 .search-surface:focus-within {
-  border-color: rgba(190, 211, 224, 0.22) !important;
+  border-color: rgba(239, 173, 69, 0.55) !important;
   background: rgba(17, 29, 39, 0.96) !important;
-  box-shadow: 0 18px 42px -24px rgba(2, 8, 13, 0.9) !important;
+  box-shadow: 0 0 0 2px rgba(239, 173, 69, 0.18), 0 18px 42px -24px rgba(2, 8, 13, 0.9) !important;
 }
 .search-surface input:focus-visible {
   outline: none;
@@ -1478,6 +1479,30 @@ textarea {
 @keyframes sheet-up {
   from { opacity: 0; transform: translateY(28px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Плавное появление блоков, которые дозагружаются после открытия карточки. */
+.fade-in-rise {
+  animation: fade-in-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes fade-in-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Нумерованные точки на мини-карте маршрута. */
+.route-map-marker {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(2, 8, 13, 0.45);
 }
 
 @media (prefers-reduced-motion: reduce) {

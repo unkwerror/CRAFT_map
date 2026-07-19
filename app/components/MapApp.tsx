@@ -390,10 +390,14 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
     for (const feature of objectsFC?.features ?? []) {
       const props = feature.properties as unknown as ObjectFeatureProps
       if (activeDistrict !== null && props.district !== activeDistrict) continue
+      // Медиафильтры учитываются, иначе числа в чипах спорят со счётчиком «мест на карте».
+      if (mediaFilters.has('audio') && !props.hasAudio) continue
+      if (mediaFilters.has('video') && !props.hasVideo) continue
+      if (mediaFilters.has('3d') && !props.has3d) continue
       counts[props.category] = (counts[props.category] ?? 0) + 1
     }
     return counts
-  }, [objectsFC, categories, activeDistrict])
+  }, [objectsFC, categories, activeDistrict, mediaFilters])
 
   const selectedAfterFilters = useCallback((
     categoryIds: ReadonlySet<string>,

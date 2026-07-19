@@ -499,7 +499,7 @@ export default function SearchBar({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder="Название, адрес, категория или округ…"
+          placeholder="Название, адрес или округ…"
           aria-label="Поиск по карте"
           role="combobox"
           aria-expanded={open}

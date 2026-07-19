@@ -21,6 +21,7 @@ interface Props {
 }
 
 function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () => void }) {
+  const [copied, setCopied] = useState(false)
   const location = [event.address, event.districtName ? `${event.districtName} округ` : null]
     .filter(Boolean)
     .join(' · ')
@@ -38,6 +39,8 @@ function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () =>
     }
     try {
       await navigator.clipboard.writeText(url)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
     } catch {
       window.prompt('Скопируйте ссылку', url)
     }
@@ -103,7 +106,10 @@ function EventCard({ event, onSelect }: { event: PublicEventDto; onSelect: () =>
       <div className="event-card__footer">
         <button type="button" onClick={onSelect}>На карте</button>
         <a href={`/api/events/${event.id}/calendar`}>В календарь</a>
-        <button type="button" onClick={() => void shareEvent()}>Поделиться</button>
+        <button type="button" onClick={() => void shareEvent()}>
+          {copied ? 'Скопировано' : 'Поделиться'}
+        </button>
+        <span aria-live="polite" className="sr-only">{copied ? 'Ссылка скопирована' : ''}</span>
         {event.registrationUrl && event.status !== 'cancelled' && (
           <a href={event.registrationUrl} target="_blank" rel="noopener noreferrer">Регистрация ↗</a>
         )}

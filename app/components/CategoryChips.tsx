@@ -41,6 +41,7 @@ export default function CategoryChips({
     <div className="category-strip-wrap">
       <div
         className="category-strip scrollbar-none -mx-1 mt-2 flex w-full max-w-full items-center gap-1.5 overflow-x-auto pb-2 pl-1 pr-8"
+        role="group"
         aria-label="Категории объектов"
       >
         <button

@@ -129,7 +129,18 @@ export default function EventsManager() {
 
   async function remove(id: string) {
     if (!window.confirm('Удалить мероприятие?')) return
-    await fetch(`/api/admin/events/${id}`, { method: 'DELETE' })
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/events/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        setError(body?.error ?? 'Не удалось удалить мероприятие')
+        return
+      }
+    } catch {
+      setError('Нет соединения с сервером — мероприятие не удалено')
+      return
+    }
     load()
   }
 
