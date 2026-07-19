@@ -11,7 +11,12 @@ export default async function HomePage() {
   const cats = await db.select().from(categories)
   return (
     <Suspense fallback={<MapPreloader label="Загружаем карту" progress={24} />}>
-      <MapApp categories={cats} routesEnabled={isFeatureEnabled('routes_enabled')} peopleEnabled={isFeatureEnabled('knowledge_graph_enabled')} />
+      <MapApp
+        categories={cats}
+        routesEnabled={isFeatureEnabled('routes_enabled')}
+        peopleEnabled={isFeatureEnabled('knowledge_graph_enabled')}
+        offlinePackagesEnabled={isFeatureEnabled('offline_packages_enabled')}
+      />
     </Suspense>
   )
 }

@@ -30,6 +30,8 @@ interface Props {
   loadError: string | null
   routesEnabled?: boolean
   peopleEnabled?: boolean
+  onOpenRoutes?: () => void
+  onOpenPeople?: () => void
   onRetry: () => void
   onClose: () => void
   onSelectObject: (id: string) => void
@@ -57,6 +59,8 @@ export default function PlacesListPanel({
   loadError,
   routesEnabled = false,
   peopleEnabled = false,
+  onOpenRoutes,
+  onOpenPeople,
   onRetry,
   onClose,
   onSelectObject,
@@ -325,22 +329,25 @@ export default function PlacesListPanel({
         {(routesEnabled || peopleEnabled) && (
           <nav className="mt-3 flex flex-wrap gap-2" aria-label="Разделы проекта">
             {routesEnabled && (
-              <Link
-                href="/routes"
+              <button
+                type="button"
+                onClick={onOpenRoutes}
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-3.5 text-[13px] font-semibold text-[var(--ink-muted)] hover:border-[var(--hairline-strong)] hover:text-[var(--ink)]"
               >
                 Маршруты
                 <span aria-hidden>→</span>
-              </Link>
+              </button>
             )}
             {peopleEnabled && (
-              <Link
-                href="/people"
+              <button
+                type="button"
+                data-people-entry
+                onClick={onOpenPeople}
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-3.5 text-[13px] font-semibold text-[var(--ink-muted)] hover:border-[var(--hairline-strong)] hover:text-[var(--ink)]"
               >
                 Люди
                 <span aria-hidden>→</span>
-              </Link>
+              </button>
             )}
           </nav>
         )}

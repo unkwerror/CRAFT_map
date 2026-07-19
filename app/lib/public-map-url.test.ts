@@ -25,6 +25,8 @@ describe('decodeMapUrl', () => {
       districtId: 4,
       mediaTypes: ['audio', 'video'],
       searchQuery: 'Пётр Первый',
+      routeSlug: null,
+      personSlug: null,
       center: { lng: 65.53432, lat: 57.15299 },
       zoom: 11.35,
       bearing: -12.3,
@@ -121,5 +123,33 @@ describe('encodeMapUrl', () => {
     expect(encoded.toString()).toBe(
       'utm_source=city&feature=preview&view=list&object=new&media=video'
     )
+  })
+})
+
+describe('routes and people params', () => {
+  it('принимает корректные slug маршрута и человека', () => {
+    const state = decodeMapUrl('view=routes&route=demo-marshrut&person=ivan-kraeved')
+    expect(state.view).toBe('routes')
+    expect(state.routeSlug).toBe('demo-marshrut')
+    expect(state.personSlug).toBe('ivan-kraeved')
+  })
+
+  it('отбрасывает мусорные slug', () => {
+    const state = decodeMapUrl('route=..%2Fetc&person=%D0%98%D0%B2%D0%B0%D0%BD')
+    expect(state.routeSlug).toBeNull()
+    expect(state.personSlug).toBeNull()
+  })
+
+  it('кодирует route и person в канонический query', () => {
+    const params = encodeMapUrl(new URLSearchParams('utm_source=qr'), {
+      ...DEFAULT_PUBLIC_MAP_URL_STATE,
+      view: 'people',
+      personSlug: 'ivan-kraeved',
+      routeSlug: 'demo-marshrut',
+    })
+    expect(params.get('view')).toBe('people')
+    expect(params.get('route')).toBe('demo-marshrut')
+    expect(params.get('person')).toBe('ivan-kraeved')
+    expect(params.get('utm_source')).toBe('qr')
   })
 })

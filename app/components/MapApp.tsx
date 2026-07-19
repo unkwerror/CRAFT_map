@@ -13,6 +13,9 @@ import MapPreloader from './MapPreloader'
 import PlacesListPanel from './PlacesListPanel'
 import MediaFilters, { type MediaFilter } from './MediaFilters'
 import type { MapNavigationMode, MapViewMode } from './MapModeNav'
+import type { RouteOverlayStop } from './MapView'
+import type { RouteDetailState } from './RoutesPanel'
+import type { PublicRoute } from '@/lib/routes'
 import { rankSearchMatch } from '@/lib/map-search'
 import {
   decodeMapUrl,
@@ -32,16 +35,21 @@ const MapView = dynamic(() => import('./MapView'), {
     </div>
   ),
 })
+const RoutesPanel = dynamic(() => import('./RoutesPanel'), { ssr: false })
+const PeoplePanel = dynamic(() => import('./PeoplePanel'), { ssr: false })
 
 interface Props {
   categories: CategoryDto[]
   routesEnabled?: boolean
   peopleEnabled?: boolean
+  offlinePackagesEnabled?: boolean
 }
 
 type FC = GeoJSON.FeatureCollection
 type LoadFailure = 'timeout' | 'error' | null
-type PlacesView = Exclude<MapNavigationMode, 'events'>
+type PlacesView = Exclude<MapNavigationMode, 'events' | 'routes'>
+/** Активный слой поверх карты; «people» не имеет вкладки и открывается из списка. */
+type ActiveView = MapViewMode | 'people'
 
 interface DataFailures {
   objects: LoadFailure
@@ -126,19 +134,28 @@ function categoriesForUrl(
   return selected.length === categories.length ? null : selected
 }
 
-function publicView(activeView: MapViewMode, placesView: PlacesView): PublicMapView {
-  if (activeView === 'events') return 'events'
+function publicView(activeView: ActiveView, placesView: PlacesView): PublicMapView {
+  if (activeView === 'events' || activeView === 'routes' || activeView === 'people') return activeView
   return placesView === 'list' ? 'list' : 'map'
 }
 
-export default function MapApp({ categories, routesEnabled = false, peopleEnabled = false }: Props) {
+export default function MapApp({
+  categories,
+  routesEnabled = false,
+  peopleEnabled = false,
+  offlinePackagesEnabled = false,
+}: Props) {
   const searchParams = useSearchParams()
   const [initialUrlState] = useState(() =>
     decodeMapUrl(new URLSearchParams(searchParams.toString()))
   )
-  const initialView: PublicMapView = initialUrlState.objectId
+  const rawInitialView: PublicMapView = initialUrlState.objectId
     ? 'map'
     : initialUrlState.view
+  const initialView: PublicMapView =
+    (rawInitialView === 'routes' && !routesEnabled) || (rawInitialView === 'people' && !peopleEnabled)
+      ? 'map'
+      : rawInitialView
   const initialActiveCats = categoriesFromUrl(initialUrlState.categoryIds, categories)
 
   const [objectsFC, setObjectsFC] = useState<FC | null>(null)
@@ -151,10 +168,25 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
     () => new Set(initialUrlState.mediaTypes)
   )
   const [selectedId, setSelectedId] = useState<string | null>(initialUrlState.objectId)
-  const [activeView, setActiveView] = useState<MapViewMode>(
-    initialView === 'events' ? 'events' : 'map'
+  const [activeView, setActiveView] = useState<ActiveView>(
+    initialView === 'events' || initialView === 'routes' || initialView === 'people'
+      ? initialView
+      : 'map'
   )
   const [eventsMounted, setEventsMounted] = useState(initialView === 'events')
+  const [routeSlug, setRouteSlug] = useState<string | null>(
+    routesEnabled ? initialUrlState.routeSlug : null
+  )
+  const [personSlug, setPersonSlug] = useState<string | null>(
+    peopleEnabled ? initialUrlState.personSlug : null
+  )
+  const [routesMounted, setRoutesMounted] = useState(
+    initialView === 'routes' || (routesEnabled && initialUrlState.routeSlug !== null)
+  )
+  const [peopleMounted, setPeopleMounted] = useState(initialView === 'people')
+  const [routeDetail, setRouteDetail] = useState<RouteDetailState | null>(null)
+  const [routeRetryTick, setRouteRetryTick] = useState(0)
+  const [fitRoute, setFitRoute] = useState<{ tick: number } | null>(null)
   const [placesView, setPlacesView] = useState<PlacesView>(initialView === 'list' ? 'list' : 'map')
   const [searchQuery, setSearchQuery] = useState(initialUrlState.searchQuery ?? '')
   const [camera, setCamera] = useState<MapCameraState>({
@@ -178,6 +210,8 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
     ...initialUrlState,
     view: initialView,
     categoryIds: categoriesForUrl(initialActiveCats, categories),
+    routeSlug: routesEnabled ? initialUrlState.routeSlug : null,
+    personSlug: peopleEnabled ? initialUrlState.personSlug : null,
   })
   const replaceTimerRef = useRef<number | null>(null)
 
@@ -274,19 +308,33 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
     const syncFromHistory = () => {
       cancelScheduledReplace()
       const decoded = decodeMapUrl(new URL(window.location.href).searchParams)
-      const nextView: PublicMapView = decoded.objectId ? 'map' : decoded.view
+      const rawView: PublicMapView = decoded.objectId ? 'map' : decoded.view
+      const nextView: PublicMapView =
+        (rawView === 'routes' && !routesEnabled) || (rawView === 'people' && !peopleEnabled)
+          ? 'map'
+          : rawView
+      const nextRouteSlug = routesEnabled ? decoded.routeSlug : null
+      const nextPersonSlug = peopleEnabled ? decoded.personSlug : null
       const nextCategories = categoriesFromUrl(decoded.categoryIds, categories)
       urlStateRef.current = {
         ...decoded,
         view: nextView,
         categoryIds: categoriesForUrl(nextCategories, categories),
+        routeSlug: nextRouteSlug,
+        personSlug: nextPersonSlug,
       }
       setPreviewId(null)
       setFitDistrict(null)
       setSelectedId(decoded.objectId)
       if (nextView === 'events') setEventsMounted(true)
-      setActiveView(nextView === 'events' ? 'events' : 'map')
+      if (nextView === 'routes' || nextRouteSlug !== null) setRoutesMounted(true)
+      if (nextView === 'people') setPeopleMounted(true)
+      setActiveView(
+        nextView === 'events' || nextView === 'routes' || nextView === 'people' ? nextView : 'map'
+      )
       setPlacesView(nextView === 'list' ? 'list' : 'map')
+      setRouteSlug(nextRouteSlug)
+      setPersonSlug(nextPersonSlug)
       setActiveCats(nextCategories)
       setActiveDistrict(decoded.districtId)
       setMediaFilters(new Set(decoded.mediaTypes))
@@ -300,7 +348,7 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
     }
     window.addEventListener('popstate', syncFromHistory)
     return () => window.removeEventListener('popstate', syncFromHistory)
-  }, [cancelScheduledReplace, categories])
+  }, [cancelScheduledReplace, categories, peopleEnabled, routesEnabled])
 
   const districtOptions = useMemo(
     () =>
@@ -657,6 +705,7 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
     } else {
       setPlacesView('map')
       if (view === 'events') setEventsMounted(true)
+      if (view === 'routes') setRoutesMounted(true)
       setActiveView(view)
     }
     pushUrlState({ view: nextView, objectId: null })
@@ -671,6 +720,94 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
     })
   }, [changeView])
 
+  const closeRoutes = useCallback(() => {
+    changeView('map')
+    window.requestAnimationFrame(() => {
+      Array.from(document.querySelectorAll<HTMLElement>('[data-map-mode-map]'))
+        .find((element) => element.offsetParent !== null)
+        ?.focus()
+    })
+  }, [changeView])
+
+  const openPeople = useCallback(() => {
+    setPreviewId(null)
+    setSelectedId(null)
+    setPlacesView('map')
+    setPeopleMounted(true)
+    setActiveView('people')
+    pushUrlState({ view: 'people', objectId: null })
+  }, [pushUrlState])
+
+  const closePeople = useCallback(() => {
+    setActiveView('map')
+    setPlacesView('map')
+    pushUrlState({ view: 'map', objectId: null })
+    window.requestAnimationFrame(() => {
+      Array.from(document.querySelectorAll<HTMLElement>('[data-map-mode-map]'))
+        .find((element) => element.offsetParent !== null)
+        ?.focus()
+    })
+  }, [pushUrlState])
+
+  const selectRoute = useCallback((slug: string | null) => {
+    setPreviewId(null)
+    setSelectedId(null)
+    setRouteSlug(slug)
+    if (slug) setRoutesMounted(true)
+    pushUrlState({ view: 'routes', routeSlug: slug, objectId: null })
+  }, [pushUrlState])
+
+  const clearRoute = useCallback(() => {
+    setRouteSlug(null)
+    pushUrlState({ routeSlug: null })
+  }, [pushUrlState])
+
+  const selectPerson = useCallback((slug: string | null) => {
+    setPreviewId(null)
+    setSelectedId(null)
+    setPersonSlug(slug)
+    pushUrlState({ view: 'people', personSlug: slug, objectId: null })
+  }, [pushUrlState])
+
+  // Карточка выбранного маршрута: данные нужны и окну, и линии на карте.
+  useEffect(() => {
+    if (!routeSlug || !routesEnabled) {
+      setRouteDetail(null)
+      return
+    }
+    let cancelled = false
+    const controller = new AbortController()
+    setRouteDetail({ slug: routeSlug, status: 'loading', data: null })
+    fetch(`/api/v1/routes/${routeSlug}`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status))
+        return response.json() as Promise<PublicRoute>
+      })
+      .then((data) => {
+        if (cancelled) return
+        setRouteDetail({ slug: routeSlug, status: 'ready', data })
+        setFitRoute((previous) => ({ tick: (previous?.tick ?? 0) + 1 }))
+      })
+      .catch(() => {
+        if (!cancelled) setRouteDetail({ slug: routeSlug, status: 'error', data: null })
+      })
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [routeSlug, routesEnabled, routeRetryTick])
+
+  const routeOverlayStops = useMemo<RouteOverlayStop[] | null>(() => {
+    if (!routeDetail?.data) return null
+    return routeDetail.data.stops.map((stop, index) => ({
+      objectId: stop.objectId,
+      title: stop.title,
+      lng: stop.lng,
+      lat: stop.lat,
+      number: index + 1,
+    }))
+  }, [routeDetail])
+
   return (
     <main className="map-shell relative h-dvh w-full overflow-hidden">
       <h1 className="sr-only">Карта памятных мест Тюмени</h1>
@@ -682,6 +819,8 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
         highlightedId={previewId}
         activeDistrictId={activeDistrict}
         fitDistrict={fitDistrict}
+        routeStops={routeOverlayStops}
+        fitRoute={fitRoute}
         camera={camera}
         onSelect={(id) => {
           if (id) pickObject(id)
@@ -700,7 +839,7 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
           'map-toolbar pointer-events-none absolute inset-x-0 top-0 z-10 p-3 md:p-5',
           selectedId || (activeView === 'map' && placesView === 'list')
             ? 'map-toolbar--with-panel-md map-toolbar--with-panel-xl'
-            : activeView === 'events'
+            : activeView === 'events' || activeView === 'routes' || activeView === 'people'
               ? 'map-toolbar--with-panel-xl'
               : '',
         ].join(' ')}
@@ -744,9 +883,22 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
               </div>
               <div className="hidden shrink-0 xl:block">
                 <div className="flex items-center gap-2">
-                  <MapModeNav active={publicView(activeView, placesView)} onChange={changeView} />
-                  {routesEnabled && <Link href="/routes" className="panel grid min-h-11 place-items-center rounded-xl px-3 text-sm font-semibold">Маршруты</Link>}
-                  {peopleEnabled && <Link href="/people" className="panel grid min-h-11 place-items-center rounded-xl px-3 text-sm font-semibold">Люди</Link>}
+                  <MapModeNav
+                    active={publicView(activeView, placesView)}
+                    onChange={changeView}
+                    showRoutes={routesEnabled}
+                  />
+                  {peopleEnabled && (
+                    <button
+                      type="button"
+                      data-people-entry
+                      onClick={openPeople}
+                      aria-pressed={activeView === 'people'}
+                      className={`panel grid min-h-11 place-items-center rounded-xl px-3 text-sm font-semibold transition-colors ${activeView === 'people' ? 'text-[var(--accent)]' : 'hover:text-[var(--accent)]'}`}
+                    >
+                      Люди
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -776,7 +928,8 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
         <MapModeNav
           active={publicView(activeView, placesView)}
           onChange={changeView}
-          className="pointer-events-auto w-full max-w-[360px]"
+          showRoutes={routesEnabled}
+          className="pointer-events-auto w-full max-w-[430px]"
         />
       </div>
 
@@ -836,11 +989,63 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
         </div>
       )}
 
+      {routeSlug && routeDetail?.status === 'ready' && routeDetail.data &&
+        activeView === 'map' && placesView === 'map' && !selectedId && !showPreloader && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+5rem))] z-[11] flex justify-center px-3 xl:bottom-6">
+          <div className="panel fade-in-rise pointer-events-auto flex max-w-full items-center gap-0.5 rounded-full py-1 pl-1 pr-1">
+            <button
+              type="button"
+              onClick={() => changeView('routes')}
+              className="flex min-h-10 min-w-0 items-center gap-2 rounded-full px-3 text-[13px] font-semibold transition-colors hover:text-[var(--accent)]"
+            >
+              <span
+                aria-hidden
+                className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-[11px] font-bold text-[var(--accent-ink)]"
+              >
+                {routeDetail.data.stops.length}
+              </span>
+              <span className="truncate">Маршрут: {routeDetail.data.title}</span>
+            </button>
+            <button
+              type="button"
+              onClick={clearRoute}
+              aria-label="Убрать маршрут с карты"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[var(--ink-subtle)] transition-colors hover:text-[var(--ink)]"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {eventsMounted && (
         <EventsPanel
           suspended={activeView !== 'events'}
           onClose={closeEvents}
           onSelectObject={pickEventObject}
+        />
+      )}
+
+      {routesMounted && routesEnabled && (
+        <RoutesPanel
+          suspended={activeView !== 'routes'}
+          offlineEnabled={offlinePackagesEnabled}
+          selectedSlug={routeSlug}
+          detail={routeDetail}
+          onSelectRoute={selectRoute}
+          onRetryDetail={() => setRouteRetryTick((tick) => tick + 1)}
+          onClose={closeRoutes}
+          onSelectObject={pickObject}
+        />
+      )}
+
+      {peopleMounted && peopleEnabled && (
+        <PeoplePanel
+          suspended={activeView !== 'people'}
+          selectedSlug={personSlug}
+          onSelectPerson={selectPerson}
+          onClose={closePeople}
+          onSelectObject={pickObject}
         />
       )}
 
@@ -853,6 +1058,8 @@ export default function MapApp({ categories, routesEnabled = false, peopleEnable
           loadError={listLoadError}
           routesEnabled={routesEnabled}
           peopleEnabled={peopleEnabled}
+          onOpenRoutes={() => changeView('routes')}
+          onOpenPeople={openPeople}
           onRetry={() => void loadData()}
           onClose={closePlacesList}
           onSelectObject={pickObject}

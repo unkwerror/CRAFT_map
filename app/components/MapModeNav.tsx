@@ -1,16 +1,18 @@
 'use client'
 
-export type MapViewMode = 'map' | 'events'
+export type MapViewMode = 'map' | 'events' | 'routes'
 export type MapNavigationMode = MapViewMode | 'list'
 
 interface Props {
-  active: MapNavigationMode
+  /** 'people' подсветки в навигации не имеет — окно «Люди» открывается из списка. */
+  active: MapNavigationMode | 'people'
   onChange: (mode: MapNavigationMode) => void
+  showRoutes?: boolean
   className?: string
 }
 
-/** Единая навигация публичной карты: карта, список мест и общая афиша. */
-export default function MapModeNav({ active, onChange, className = '' }: Props) {
+/** Единая навигация публичной карты: карта, список мест, маршруты и афиша. */
+export default function MapModeNav({ active, onChange, showRoutes = false, className = '' }: Props) {
   return (
     <nav
       className={`map-mode-nav panel ${className}`}
@@ -46,6 +48,22 @@ export default function MapModeNav({ active, onChange, className = '' }: Props) 
         </svg>
         <span>Список</span>
       </button>
+      {showRoutes && (
+        <button
+          type="button"
+          data-map-mode-routes
+          onClick={() => onChange('routes')}
+          aria-current={active === 'routes' ? 'page' : undefined}
+          className={`map-mode-nav__item ${active === 'routes' ? 'map-mode-nav__item--active' : ''}`}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M5 19c4-1 3-5 7-6s6-3 6-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeDasharray="0.1 3.2" />
+            <circle cx="5" cy="19" r="2.1" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="18" cy="7" r="2.1" fill="currentColor" />
+          </svg>
+          <span>Маршруты</span>
+        </button>
+      )}
       <button
         type="button"
         data-map-mode-events
@@ -58,7 +76,7 @@ export default function MapModeNav({ active, onChange, className = '' }: Props) 
           <path d="M7 3v4m10-4v4M3 10h18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           <path d="M8 14h3m2 0h3m-8 3h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
         </svg>
-        <span>Мероприятия</span>
+        <span>Афиша</span>
       </button>
     </nav>
   )

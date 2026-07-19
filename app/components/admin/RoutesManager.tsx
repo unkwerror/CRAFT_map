@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { EDITORIAL_STATUSES, canTransitionEditorialStatus, type EditorialStatus } from '@/lib/editorial-workflow'
 import { translitSlug } from '@/lib/translit'
-import ObjectPicker, { type ObjectOption } from './ObjectPicker'
+import type { AdminObjectRow } from '@/lib/types'
+import ObjectPicker from './ObjectPicker'
+import RouteStopsMap from './RouteStopsMap'
 
 interface RouteRow {
   id: string
@@ -78,7 +80,7 @@ function emptyStop(objectId: string): StopDraft {
 
 export default function RoutesManager() {
   const [routes, setRoutes] = useState<RouteRow[]>([])
-  const [objects, setObjects] = useState<ObjectOption[]>([])
+  const [objects, setObjects] = useState<AdminObjectRow[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -259,14 +261,40 @@ export default function RoutesManager() {
     setStops((list) => list.map((item, i) => (i === index ? { ...item, ...patch } : item)))
   }
 
+  function toggleStop(objectId: string) {
+    setStops((list) => list.some((stop) => stop.objectId === objectId)
+      ? list.filter((stop) => stop.objectId !== objectId)
+      : [...list, emptyStop(objectId)])
+  }
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
-      <div className="space-y-3">
-        {(error || notice) && (
-          <p role="status" className={`rounded-lg p-3 text-sm ${error ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
-            {error || notice}
+    <div className="space-y-5">
+      {(error || notice) && (
+        <p role="status" className={`rounded-lg p-3 text-sm ${error ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          {error || notice}
+        </p>
+      )}
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="font-semibold">
+            {editingId ? 'Точки маршрута на карте — редактирование' : 'Соберите маршрут на карте'}
+          </h2>
+          <p className="text-xs text-slate-500">
+            Клик по памятнику добавляет точку, повторный клик по выбранной — убирает. Линия строится автоматически.
           </p>
-        )}
+        </div>
+        <div className="mt-3">
+          <RouteStopsMap
+            objects={objects}
+            stopIds={stops.map((stop) => stop.objectId)}
+            onToggle={toggleStop}
+          />
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+      <div className="space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead>
@@ -429,6 +457,7 @@ export default function RoutesManager() {
           Публикация — кнопками статуса в таблице. Для публикации нужны минимум две остановки.
         </p>
       </form>
+      </div>
     </div>
   )
 }

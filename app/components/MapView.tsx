@@ -18,6 +18,14 @@ function ensurePmtilesProtocol() {
   }
 }
 
+export interface RouteOverlayStop {
+  objectId: string
+  title: string
+  lng: number
+  lat: number
+  number: number
+}
+
 export interface MapViewProps {
   categories: CategoryDto[]
   /** уже отфильтрованные объекты */
@@ -29,6 +37,10 @@ export interface MapViewProps {
   activeDistrictId: number | null
   /** fitBounds на округ; tick — чтобы повторный клик срабатывал */
   fitDistrict: { districtId: number; tick: number } | null
+  /** Активный маршрут: линия и нумерованные точки поверх объектов. */
+  routeStops: RouteOverlayStop[] | null
+  /** fitBounds на маршрут; tick — чтобы повторный выбор срабатывал. */
+  fitRoute: { tick: number } | null
   /** Камера из shareable URL; null-поля восстанавливают обзор города. */
   camera: MapCameraState
   onSelect: (id: string | null) => void
@@ -137,6 +149,8 @@ export default function MapView({
   highlightedId,
   activeDistrictId,
   fitDistrict,
+  routeStops,
+  fitRoute,
   camera,
   onSelect,
   onCameraChange,
@@ -286,7 +300,8 @@ export default function MapView({
           [e.point.x - pad, e.point.y - pad],
           [e.point.x + pad, e.point.y + pad],
         ]
-        const layers = ['objects-core', 'clusters-core'].filter((l) => map.getLayer(l))
+        const layers = ['route-stops-overlay', 'objects-core', 'clusters-core']
+          .filter((l) => map.getLayer(l))
         const features = map.queryRenderedFeatures(box, { layers })
         const f = features[0]
         if (!f) {
@@ -313,7 +328,8 @@ export default function MapView({
           hoverFrame = null
           const point = latestHoverPoint
           if (!point) return
-          const layers = ['objects-core', 'clusters-core'].filter((layer) => map.getLayer(layer))
+          const layers = ['route-stops-overlay', 'objects-core', 'clusters-core']
+            .filter((layer) => map.getLayer(layer))
           if (!layers.length) return
           const features = map.queryRenderedFeatures(point, { layers })
           map.getCanvas().style.cursor = features.length ? 'pointer' : ''
@@ -664,6 +680,95 @@ export default function MapView({
       duration: reducedMotion ? 0 : 700,
     })
   }, [ready, selected])
+
+  // Активный маршрут: линия между точками + нумерованные маркеры поверх объектов.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const stops = routeStops ?? []
+    const stopsData: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: stops.map((stop) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [stop.lng, stop.lat] },
+        properties: { id: stop.objectId, number: stop.number, title: stop.title },
+      })),
+    }
+    const lineData: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: stops.length >= 2
+        ? [{
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: stops.map((stop) => [stop.lng, stop.lat]) },
+            properties: {},
+          }]
+        : [],
+    }
+    const stopsSource = map.getSource('route-overlay-stops') as maplibregl.GeoJSONSource | undefined
+    const lineSource = map.getSource('route-overlay-path') as maplibregl.GeoJSONSource | undefined
+    if (stopsSource && lineSource) {
+      stopsSource.setData(stopsData)
+      lineSource.setData(lineData)
+    } else {
+      map.addSource('route-overlay-path', { type: 'geojson', data: lineData })
+      map.addSource('route-overlay-stops', { type: 'geojson', data: stopsData })
+      map.addLayer({
+        id: 'route-overlay-line',
+        type: 'line',
+        source: 'route-overlay-path',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#efad45', 'line-width': 3.5, 'line-opacity': 0.85 },
+      })
+      map.addLayer({
+        id: 'route-stops-overlay',
+        type: 'circle',
+        source: 'route-overlay-stops',
+        paint: {
+          'circle-color': '#efad45',
+          'circle-radius': 13,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+        },
+      })
+      map.addLayer({
+        id: 'route-stops-overlay-number',
+        type: 'symbol',
+        source: 'route-overlay-stops',
+        layout: {
+          'text-field': ['to-string', ['get', 'number']],
+          'text-font': labelFontRef.current,
+          'text-size': 12,
+          'text-allow-overlap': true,
+        },
+        paint: { 'text-color': '#10243a' },
+      })
+    }
+    // Слои объектов пересоздаются позже — маршрут держим над ними.
+    for (const layerId of ['route-overlay-line', 'route-stops-overlay', 'route-stops-overlay-number']) {
+      if (map.getLayer(layerId)) map.moveLayer(layerId)
+    }
+  }, [ready, routeStops, objects])
+
+  // fitBounds на активный маршрут; на десктопе правый край занят окном «Маршруты».
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !fitRoute || !routeStops || routeStops.length === 0) return
+    const bounds = new maplibregl.LngLatBounds()
+    for (const stop of routeStops) bounds.extend([stop.lng, stop.lat])
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const sidePanel = window.innerWidth >= 1280
+    map.fitBounds(bounds, {
+      padding: {
+        top: 120,
+        bottom: sidePanel ? 90 : 180,
+        left: 70,
+        right: sidePanel ? 580 : 70,
+      },
+      maxZoom: 15.8,
+      duration: reducedMotion ? 0 : 700,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, fitRoute])
 
   // fitBounds на выбранный округ (контуры на карте не рисуем — только навигация)
   useEffect(() => {

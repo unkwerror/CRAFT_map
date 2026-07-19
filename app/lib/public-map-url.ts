@@ -1,4 +1,4 @@
-export type PublicMapView = 'map' | 'events' | 'list'
+export type PublicMapView = 'map' | 'events' | 'list' | 'routes' | 'people'
 
 export const PUBLIC_MAP_MEDIA_TYPES = ['audio', 'video', '3d'] as const
 
@@ -29,6 +29,10 @@ export interface PublicMapUrlState extends MapCameraState {
   districtId: number | null
   mediaTypes: PublicMapMediaType[]
   searchQuery: string | null
+  /** Выбранный маршрут: линия и точки на карте + карточка в окне «Маршруты». */
+  routeSlug: string | null
+  /** Открытая биография в окне «Люди». */
+  personSlug: string | null
 }
 
 export type PublicMapUrlStateInput = Partial<PublicMapUrlState>
@@ -40,13 +44,17 @@ export const DEFAULT_PUBLIC_MAP_URL_STATE: Readonly<PublicMapUrlState> = {
   districtId: null,
   mediaTypes: [],
   searchQuery: null,
+  routeSlug: null,
+  personSlug: null,
   center: null,
   zoom: null,
   bearing: null,
   pitch: null,
 }
 
-const VIEW_VALUES = new Set<PublicMapView>(['map', 'events', 'list'])
+const VIEW_VALUES = new Set<PublicMapView>(['map', 'events', 'list', 'routes', 'people'])
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const MAX_SLUG_LENGTH = 120
 const MEDIA_TYPE_VALUES = new Set<string>(PUBLIC_MAP_MEDIA_TYPES)
 const DECIMAL_NUMBER = /^-?(?:\d+(?:\.\d*)?|\.\d+)$/
 const POSITIVE_INTEGER = /^\d+$/
@@ -59,6 +67,8 @@ const MAX_CATEGORY_COUNT = 100
 const OWNED_QUERY_KEYS = [
   'view',
   'object',
+  'route',
+  'person',
   'category',
   'district',
   'media',
@@ -100,6 +110,13 @@ function readIdentifier(value: unknown): string | null {
     trimmed.length > MAX_IDENTIFIER_LENGTH ||
     CONTROL_CHARACTER.test(trimmed)
   ) return null
+  return trimmed
+}
+
+function readSlug(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > MAX_SLUG_LENGTH || !SLUG_PATTERN.test(trimmed)) return null
   return trimmed
 }
 
@@ -194,6 +211,8 @@ export function decodeMapUrl(
     districtId: readDistrictId(params.get('district')),
     mediaTypes: readMediaTypes(params.getAll('media')),
     searchQuery: readSearchQuery(params.get('q')),
+    routeSlug: readSlug(params.get('route')),
+    personSlug: readSlug(params.get('person')),
     center: lng !== null && lat !== null ? { lng, lat } : null,
     zoom: readBoundedNumber(
       params.get('zoom'),
@@ -226,6 +245,12 @@ function encodeOwnedMapUrlState(
 
   const objectId = readIdentifier(state.objectId)
   if (objectId) params.set('object', objectId)
+
+  const routeSlug = readSlug(state.routeSlug)
+  if (routeSlug) params.set('route', routeSlug)
+
+  const personSlug = readSlug(state.personSlug)
+  if (personSlug) params.set('person', personSlug)
 
   if (Array.isArray(state.categoryIds)) {
     const categoryIds = readCategoryIds(state.categoryIds)

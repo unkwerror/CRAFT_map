@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { EDITORIAL_STATUSES, canTransitionEditorialStatus, type EditorialStatus } from '@/lib/editorial-workflow'
 import { translitSlug } from '@/lib/translit'
-import ObjectPicker, { type ObjectOption } from './ObjectPicker'
+import type { AdminObjectRow } from '@/lib/types'
+import ObjectFieldWithMap from './ObjectFieldWithMap'
 
 interface Person {
   id: string
@@ -90,7 +91,7 @@ export default function MemoryManager() {
   const [events, setEvents] = useState<EventRow[]>([])
   const [media, setMedia] = useState<MediaRow[]>([])
   const [relations, setRelations] = useState<Relation[]>([])
-  const [objects, setObjects] = useState<ObjectOption[]>([])
+  const [objects, setObjects] = useState<AdminObjectRow[]>([])
   const [sources, setSources] = useState<SourceRow[]>([])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -330,7 +331,7 @@ export default function MemoryManager() {
           className="space-y-3 rounded-xl border bg-white p-4"
         >
           <h2 className="font-semibold">Событие хронологии</h2>
-          <ObjectPicker objects={objects} value={objectId} onChange={setObjectId} ariaLabel="Объект для записи хронологии" placeholder="Найти объект по названию…" />
+          <ObjectFieldWithMap objects={objects} value={objectId} onChange={setObjectId} ariaLabel="Объект для записи хронологии" dialogTitle="Объект записи хронологии" />
           <label className="block text-sm">
             Тип события
             <select value={entryType} onChange={(event) => setEntryType(event.target.value)} className={`mt-1 ${inputClass}`}>
@@ -364,7 +365,7 @@ export default function MemoryManager() {
           className="space-y-3 rounded-xl border bg-white p-4"
         >
           <h2 className="font-semibold">Связать человека с местом</h2>
-          <ObjectPicker objects={objects} value={relationObjectId} onChange={setRelationObjectId} ariaLabel="Объект для связи с человеком" placeholder="Найти объект по названию…" />
+          <ObjectFieldWithMap objects={objects} value={relationObjectId} onChange={setRelationObjectId} ariaLabel="Объект для связи с человеком" dialogTitle="Место для связи с человеком" />
           <select required value={personId} onChange={(event) => setPersonId(event.target.value)} className={inputClass}>
             <option value="">Выберите человека</option>
             {people.map((person) => (
@@ -440,7 +441,7 @@ export default function MemoryManager() {
             <option value="person">С человеком</option>
           </select>
           {linkTarget === 'object' ? (
-            <ObjectPicker objects={objects} value={linkObjectId} onChange={setLinkObjectId} ariaLabel="Объект для связи с событием" placeholder="Найти объект по названию…" />
+            <ObjectFieldWithMap objects={objects} value={linkObjectId} onChange={setLinkObjectId} ariaLabel="Объект для связи с событием" dialogTitle="Место для связи с событием" />
           ) : (
             <select required value={linkPersonId} onChange={(event) => setLinkPersonId(event.target.value)} className={inputClass}>
               <option value="">Выберите человека</option>
@@ -491,7 +492,7 @@ export default function MemoryManager() {
           className="space-y-3 rounded-xl border bg-white p-4"
         >
           <h2 className="font-semibold">Архивное фото «тогда/сейчас»</h2>
-          <ObjectPicker
+          <ObjectFieldWithMap
             objects={objects}
             value={mediaObjectId}
             onChange={(id) => {
@@ -499,7 +500,7 @@ export default function MemoryManager() {
               setMediaTimelineId('')
             }}
             ariaLabel="Объект архивного фото"
-            placeholder="Найти объект по названию…"
+            dialogTitle="Объект архивного фото"
           />
           <select value={mediaTimelineId} onChange={(event) => setMediaTimelineId(event.target.value)} className={inputClass} aria-label="Привязка к записи хронологии">
             <option value="">Без привязки к хронологии</option>
