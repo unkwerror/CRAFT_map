@@ -24,3 +24,15 @@ export const analyticsEventSchema = z.object({
   outcome: z.string().trim().max(64).nullable().default(null),
 }).strict()
 
+
+/**
+ * Клиентское время события зажимается к серверному окну ±48 часов:
+ * произвольный occurred_at из запроса не должен искажать отчёты.
+ */
+export function clampOccurredAt(timestamp: string, now: Date = new Date()): string {
+  const parsed = Date.parse(timestamp)
+  if (!Number.isFinite(parsed)) return now.toISOString()
+  const windowMs = 48 * 60 * 60 * 1000
+  if (Math.abs(now.getTime() - parsed) > windowMs) return now.toISOString()
+  return new Date(parsed).toISOString()
+}

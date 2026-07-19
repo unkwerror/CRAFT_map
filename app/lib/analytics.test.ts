@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyticsEventSchema } from './analytics'
+import { analyticsEventSchema, clampOccurredAt } from './analytics'
 
 describe('analyticsEventSchema', () => {
   const valid = {
@@ -13,3 +13,14 @@ describe('analyticsEventSchema', () => {
   })
 })
 
+
+describe('clampOccurredAt', () => {
+  const now = new Date('2026-07-19T12:00:00Z')
+  it('валидное недавнее время проходит как есть', () => {
+    expect(clampOccurredAt('2026-07-19T10:30:00Z', now)).toBe('2026-07-19T10:30:00.000Z')
+  })
+  it('время за пределами ±48 часов заменяется серверным', () => {
+    expect(clampOccurredAt('2020-01-01T00:00:00Z', now)).toBe(now.toISOString())
+    expect(clampOccurredAt('2030-01-01T00:00:00Z', now)).toBe(now.toISOString())
+  })
+})
